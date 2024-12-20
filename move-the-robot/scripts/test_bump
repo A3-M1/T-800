@@ -1,0 +1,64 @@
+#!/usr/bin/python3
+
+import rclpy
+from rclpy.node import Node
+from geometry_msgs.msg import Twist
+from kobuki_ros_interfaces.msg import BumperEvent # type: ignore
+import time
+
+speed = 0.2
+angular_speed = 1.0
+
+print("test_bump :: START...")
+
+def infiniteBump():
+    # Initialize ROS node with ROS client
+    rclpy.init()
+    aNode= Node("infBump")
+    mover= ROSMover(aNode)
+    # Start infinite loop
+    rclpy.spin(aNode)
+    # Clean everything and switch the light off
+    aNode.destroy_node()
+    rclpy.shutdown()
+
+class ROSMover: 
+    def __init__(self, rosNode):
+        self._logger= rosNode.get_logger()
+        self._publisher= rosNode.create_publisher( Twist, '/multi/cmd_nav', 10 )
+        self._subscription = rosNode.create_subscription( BumperEvent, '/events/bumper',self.bump_callback, 10 )
+        self._timer = rosNode.create_timer(0.5, self.timer_callback)
+        self._current_velocity = speed
+        self._current_angular_velocity = 0.0
+        self._timer_bumper = 0.0
+        self._i = 0.0
+
+    def timer_callback(self):
+        velocity = Twist()
+        # Feed Twist velocity values
+        velocity.linear.x = self._current_velocity
+        velocity.angular.z = self._current_angular_velocity
+        # Publish 
+        self._publisher.publish(velocity)
+        # Increment
+        self._i += 1
+
+    def bump_callback(self, msg):
+        velocity = Twist()       
+        # Publish 
+        self._publisher.publish(velocity)
+
+        if msg.state == BumperEvent.PRESSED:
+            self._logger.info(f"Bumper pressed! sensor ID: {msg.bumper}")
+            self._timer_bumper = self._i
+            self._logger.info(f"Timer: {self._i}")
+
+        if self._timer_bumper + 6 <= self._i:
+            self._current_velocity = -speed 
+            self._current_angular_velocity = angular_speed 
+            self._logger.info(f"DEMITOUR")
+
+
+# Execute the function.
+if __name__ == "__main__":
+    infiniteBump()

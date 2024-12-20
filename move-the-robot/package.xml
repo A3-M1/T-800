@@ -9,6 +9,7 @@
 
   <depend>rclpy</depend>
   <depend>geometry_msgs</depend>
+  <depend>kobuki_ros_interfaces</depend>
 
   <buildtool_depend>ament_cmake</buildtool_depend>
 

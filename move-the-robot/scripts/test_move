@@ -25,7 +25,7 @@ class ROSMover:
     def timer_callback(self):
         velocity = Twist()
         # Feed Twist velocity values
-        velocity.linear.x = 0.1
+        velocity.linear.x = -0.3
         velocity.angular.z = 0.0
         if self._i%5 == 0:
             velocity.angular.z = 1.0

@@ -27,5 +27,6 @@ endif()
 install( PROGRAMS scripts/talker DESTINATION lib/${PROJECT_NAME} )
 install( PROGRAMS scripts/listener DESTINATION lib/${PROJECT_NAME} )
 install( PROGRAMS scripts/test_move DESTINATION lib/${PROJECT_NAME} )
+install( PROGRAMS scripts/test_bump DESTINATION lib/${PROJECT_NAME} )
 
 ament_package()
