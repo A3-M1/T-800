@@ -4,28 +4,56 @@ import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Twist
 from kobuki_ros_interfaces.msg import BumperEvent # type: ignore
+from sensor_msgs.msg import LaserScan
+from math import cos, sin
 
 speed = 0.2
 angular_speed = 1.0
 
-print("test_bump :: START...")
+print("test_range :: START...")
 
 def infiniteBump():
     # Initialize ROS node with ROS client
     rclpy.init()
     aNode= Node("infBump")
     mover= ROSMover(aNode)
+    scanner = ScanInterpreter(aNode)
     # Start infinite loop
     rclpy.spin(aNode)
     # Clean everything and switch the light off
     aNode.destroy_node()
     rclpy.shutdown()
 
+class ScanInterpreter:
+    def __init__(self, rosNode):
+        self._logger= rosNode.get_logger()
+        self._subscription_bump = rosNode.create_subscription( LaserScan, '/scan',self.scan_callback, 10 )
+
+    def scan_callback(self, scanMsg):
+        self._logger.info( f"scan:\n{scanMsg}" )
+        obstacles = self.point_cloud(scanMsg)
+        sample= [ [ round(p[0], 2), round(p[1], 2) ] for p in  obstacles[10:20] ]
+        self._logger.info( f" obs({len(obstacles)}) ...{sample}..." )
+
+    def point_cloud(self, scanMsg):
+        obstacles= []
+        angle= scanMsg.angle_min
+        for aDistance in scanMsg.ranges :
+            if 0.1 < aDistance and aDistance < 5.0 :
+                aPoint= [
+                    cos(angle) * aDistance,
+                    sin(angle) * aDistance
+                ]
+                obstacles.append(aPoint)
+        angle+= scanMsg.angle_increment
+        return obstacles
+
 class ROSMover: 
     def __init__(self, rosNode):
         self._logger= rosNode.get_logger()
         self._publisher_nav = rosNode.create_publisher( Twist, '/multi/cmd_nav', 10 )
         self._subscription_bump = rosNode.create_subscription( BumperEvent, '/events/bumper',self.bump_callback, 10 )
+        rosNode.create_subscription( LaserScan, 'scan', self.scan_callback, 10)
         self._timer = rosNode.create_timer(0.2, self.timer_callback)
         self._current_velocity = speed
         self._current_angular_velocity = 0.0
@@ -58,7 +86,8 @@ class ROSMover:
     def bump_callback(self, msg):
         if msg.state == BumperEvent.PRESSED:
             self._logger.info(f"Bumper pressed! sensor ID: {msg.bumper}")
-            self._bumped = True
+        self._bumped = True
+
 
 # Execute the function.
 if __name__ == "__main__":

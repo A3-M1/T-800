@@ -28,5 +28,7 @@ install( PROGRAMS scripts/talker DESTINATION lib/${PROJECT_NAME} )
 install( PROGRAMS scripts/listener DESTINATION lib/${PROJECT_NAME} )
 install( PROGRAMS scripts/test_move DESTINATION lib/${PROJECT_NAME} )
 install( PROGRAMS scripts/test_bump DESTINATION lib/${PROJECT_NAME} )
+install( PROGRAMS scripts/test_range DESTINATION lib/${PROJECT_NAME} )
+install( PROGRAMS scripts/test_reactive DESTINATION lib/${PROJECT_NAME} )
 
 ament_package()
