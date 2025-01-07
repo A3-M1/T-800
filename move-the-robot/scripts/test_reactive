@@ -1,0 +1,135 @@
+#!/usr/bin/python3
+import rclpy
+from rclpy.node import Node
+from sensor_msgs.msg import LaserScan
+from kobuki_ros_interfaces.msg import BumperEvent
+from geometry_msgs.msg import Twist
+from math import cos, sin
+import sys
+
+speed_bumper = 0.2
+speed_sensor = 0.4
+angular_speed = 0.5
+
+def main():
+    rclpy.init(args=sys.argv)
+    node = PriorityNode('basic_move')
+    control1 = StraightCtrl()
+    control1.initializeRosNode(node)
+    control2 = ROSMover(node)
+
+    rclpy.spin(node)
+    node.destroy_node()
+    rclpy.shutdown()
+
+class PriorityNode(Node):
+    def __init__(self, name):
+        super().__init__(name)
+        self._bumped_active = False  # Pour gérer les priorités entre les contrôleurs
+
+class StraightCtrl:
+    def initializeRosNode(self, rosNode):
+        self._logger = rosNode.get_logger()
+        self._node = rosNode
+        self._pubVelocity = rosNode.create_publisher(Twist, '/multi/cmd_nav', 10)
+        self._subToScan = rosNode.create_subscription(LaserScan, '/scan', self.scan_callback, 10)
+        self._timForCtrl = rosNode.create_timer(0.05, self.control_callback)
+
+        self._current_velocity = speed_sensor
+        self._current_angular_velocity = 0.0
+        self._timer_turn_left_end = 0.0
+        self._timer_turn_right_end = 0.0
+        self._i = 0.0
+        self._turn_right = False
+        self._turn_left = False
+        self.obstacle_left = False
+        self.obstacle_right = False
+
+    def scan_callback(self, scan_msg):
+        self.obstacle_left = False
+        self.obstacle_right = False
+
+        angle_min = scan_msg.angle_min
+        angle_increment = scan_msg.angle_increment
+        ranges = scan_msg.ranges
+
+        for i, distance in enumerate(ranges):
+            angle = angle_min + i * angle_increment
+            if 0.1 < distance < 0.4:
+                x = cos(angle) * distance
+                y = sin(angle) * distance
+                if y > 0 and x > 0:
+                    self.obstacle_left = True
+                elif y < 0 and x > 0:
+                    self.obstacle_right = True
+
+        self._logger.info(f"Obstacle à gauche : {self.obstacle_left}, Obstacle à droite : {self.obstacle_right}")
+
+    def control_callback(self):
+        if self._node._bumped_active:
+            return  # Priorité au bumper
+
+        velocity = Twist()
+        self._current_velocity = speed_sensor
+        self._current_angular_velocity = 0.0
+
+        if self.obstacle_left:
+            self._current_velocity = 0.0
+            self._current_angular_velocity = -angular_speed
+            self._logger.info("TOURNE VERS LA DROITE")
+
+        if self.obstacle_right and not self.obstacle_left:
+            self._current_velocity = 0.0
+            self._current_angular_velocity = angular_speed
+            self._logger.info("TOURNE VERS LA GAUCHE")
+
+        velocity.linear.x = self._current_velocity
+        velocity.angular.z = self._current_angular_velocity
+
+        self._pubVelocity.publish(velocity)
+        self._i += 1
+
+class ROSMover: 
+    def __init__(self, rosNode):
+        self._logger= rosNode.get_logger()
+        self._node = rosNode
+        self._publisher_nav = rosNode.create_publisher( Twist, '/multi/cmd_nav', 10 )
+        self._subscription_bump = rosNode.create_subscription( BumperEvent, '/events/bumper',self.bump_callback, 10 )
+        self._timer = rosNode.create_timer(0.2, self.timer_callback)
+        self._current_velocity = speed_bumper
+        self._current_angular_velocity = 0.0
+        self._timer_bumper_end = 0
+        self._i = 0.0
+        self._bumped = False
+
+    def timer_callback(self):
+        if not self._node._bumped_active:
+            return  # Pas de demi-tour si le bumper n'est pas actif
+
+        velocity = Twist()
+        self._current_velocity = speed_bumper
+        self._current_angular_velocity = 0.0
+        if self._bumped:
+            self._timer_bumper_end = self._i + 10
+            self._bumped = False 
+            self._logger.info("DEMITOUR COMMENCE")
+        if self._timer_bumper_end >= self._i:
+            self._current_velocity = -speed_bumper 
+            self._current_angular_velocity = angular_speed 
+            self._logger.info("DEMITOUR")
+        else:
+            self._node._bumped_active = False  # Réinitialiser une fois terminé
+
+        velocity.linear.x = self._current_velocity
+        velocity.angular.z = self._current_angular_velocity
+        self._publisher_nav.publish(velocity)
+        self._i += 1
+
+    def bump_callback(self, msg):
+        if msg.state == BumperEvent.PRESSED:
+            self._logger.info(f"Bumper pressed! sensor ID: {msg.bumper}")
+            self._bumped = True
+            self._node._bumped_active = True
+
+if __name__ == '__main__':
+    main()
