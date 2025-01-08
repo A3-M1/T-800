@@ -1,0 +1,50 @@
+#!/usr/bin/python3
+
+import rclpy # type: ignore
+from rclpy.node import Node # type: ignore
+from geometry_msgs.msg import Pose2D # type: ignore
+
+
+# Start the node
+def startNode():
+    rclpy.init()
+    aNode= Node("navigation")
+    emergencyStoper = ROSNavigator(aNode)
+    # Start infinite loop
+    rclpy.spin(aNode)
+    # Clean everything and switch the light off
+    aNode.destroy_node()
+    rclpy.shutdown()
+
+
+# Node execution
+class ROSNavigator():
+    def __init__(self, rosNode):
+        # Logger
+        self._logger = rosNode.get_logger()
+        # Publisher for giving order to the mover
+        self._pub_move = rosNode.create_publisher(Pose2D, '/t800/move', 10)
+        # Timer to publish the move command every 3 seconds
+        self._timer_recalculate = rosNode.create_timer(3, self.move_publish)
+        # Variables
+        self._i = 0
+        rosNode.declare_parameter( 'my_parameter', 10 )
+        aProgramVariable= rosNode.get_parameter( 'my_parameter' ).value
+
+        print( f"> Parameter value: {aProgramVariable}" )
+        # Log the start
+        self._logger.info('Started !')
+
+    # Navigation command publisher, runned every 3 seconds
+    def move_publish(self):
+        # Publish the navigation command
+        if self._i % 2 == 1:
+            self._pub_move.publish(Pose2D(x=0.0, theta=1.0))
+        else:
+            self._pub_move.publish(Pose2D(x=1.0, theta=0.0))
+        self._i += 1
+
+
+# Execute the function.
+if __name__ == "__main__":
+    startNode()

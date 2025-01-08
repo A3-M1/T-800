@@ -1,0 +1,115 @@
+#!/usr/bin/python3
+
+import rclpy # type: ignore
+from rclpy.node import Node # type: ignore
+from std_msgs.msg import Bool # type: ignore
+from geometry_msgs.msg import Twist, Vector3, Pose2D # type: ignore
+
+
+# Default parameters
+DEFAULT_LINEAR_SPEED = 0.2
+DEFAULT_ANGULAR_SPEED = 1.0
+DEFAULT_LINEAR_ACCEL_AUG = 0.01
+DEFAULT_LINEAR_ACCEL_DIM = 0.03
+DEFAULT_ANGULAR_ACCEL = 0.1
+DEFAULT_CMD_NAV_TOPIC = '/multi/cmd_nav'
+
+
+# Start the node
+def startNode():
+    rclpy.init()
+    aNode= Node("mover")
+    mover = ROSMover(aNode)
+    # Start infinite loop
+    rclpy.spin(aNode)
+    # Clean everything and switch the light off
+    aNode.destroy_node()
+    rclpy.shutdown()
+
+
+# Node execution
+class ROSMover():
+    def __init__(self, rosNode):
+        # Logger
+        self._logger = rosNode.get_logger()
+        # Topic parameters
+        rosNode.declare_parameter('cmd_nav_topic', DEFAULT_CMD_NAV_TOPIC)
+        self._cmdNavTopic = rosNode.get_parameter('cmd_nav_topic').value
+        # Publisher for the velocity of wheel
+        self._pub_cmd_nav = rosNode.create_publisher(Twist, self._cmdNavTopic, 10)
+        # Subscribers to events that can trigger move to the robot
+        self._sub_emergency_stop = rosNode.create_subscription(Bool, '/t800/emergency_stop',self.emergency_stop_callback, 10)
+        self._sub_move = rosNode.create_subscription(Pose2D, '/t800/move',self.move_callback, 10)
+        # Parameters
+        rosNode.declare_parameter('linear_speed', DEFAULT_LINEAR_SPEED)
+        rosNode.declare_parameter('angular_speed', DEFAULT_ANGULAR_SPEED)
+        rosNode.declare_parameter('linear_accel_aug', DEFAULT_LINEAR_ACCEL_AUG)
+        rosNode.declare_parameter('linear_accel_dim', DEFAULT_LINEAR_ACCEL_DIM)
+        rosNode.declare_parameter('angular_accel', DEFAULT_ANGULAR_ACCEL)
+        self._linearSpeed = rosNode.get_parameter('linear_speed').value
+        self._angularSpeed = rosNode.get_parameter('angular_speed').value
+        self._linearAccelAug = rosNode.get_parameter('linear_accel_aug').value
+        self._linearAccelDim = rosNode.get_parameter('linear_accel_dim').value
+        self._angularAccel = rosNode.get_parameter('angular_accel').value
+        # Variables
+        self._emergencyStop = False
+        self._currentLinearVelocity = 0.0
+        self._targetLinearVelocity = 0.0
+        self._currentAngularVelocity = 0.0
+        self._targetAngularVelocity = 0.0
+        # Timer to recalculate the current velocity and publish it every 0.2 seconds
+        self._timer_recalculate = rosNode.create_timer(0.2, self.cmd_nav_publish_callback)
+        # Log the start
+        self._logger.info('Started !')
+
+    # Navigation command callback, runned after every move (or stop) event callback or loop
+    def cmd_nav_publish_callback(self):
+        # Update the current velocity to reach the target velocity
+        self.accel_update()
+        # Check if there is an emergency stop, if so, set current velocities to 0 no matter what
+        if self._emergencyStop:
+            self._currentLinearVelocity = 0.0
+            self._currentAngularVelocity = 0.0
+        # Publish the navigation command
+        self._pub_cmd_nav.publish(Twist(linear=Vector3(x=self._currentLinearVelocity), angular=Vector3(z=self._currentAngularVelocity)))
+    
+    
+    # Function to update the current velocity to reach the target velocity
+    def accel_update(self):
+        # Update the current velocity to reach the target velocity
+        if self._currentLinearVelocity < self._targetLinearVelocity:
+            self._currentLinearVelocity = min(self._currentLinearVelocity + self._linearAccelAug, self._targetLinearVelocity)
+        elif self._currentLinearVelocity > self._targetLinearVelocity:
+            self._currentLinearVelocity = max(self._currentLinearVelocity - self._linearAccelDim, self._targetLinearVelocity)
+        if self._currentAngularVelocity < self._targetAngularVelocity:
+            self._currentAngularVelocity = min(self._currentAngularVelocity + self._angularAccel, self._targetAngularVelocity)
+        elif self._currentAngularVelocity > self._targetAngularVelocity:
+            self._currentAngularVelocity = max(self._currentAngularVelocity - self._angularAccel, self._targetAngularVelocity)
+    
+    # Emergency stop subscriber callback
+    def emergency_stop_callback(self, bool_msg):
+        # If the emergency stop is triggered, stop the robot
+        if bool_msg.data:
+            self._emergencyStop = True
+            self._logger.info(f"Emergency stop triggered !\n -> Move order are now ignored !")
+        else:
+            self._emergencyStop = False
+            self._logger.info(f"Emergency stop released !\n -> Robot can now move !")
+        # Update and publish current navigation command state
+        self.cmd_nav_publish_callback()
+    
+    # Move order subscriber callback
+    def move_callback(self, pose_msg):
+        # If the move order is triggered, first check if this change something
+        if pose_msg.x != self._targetLinearVelocity or pose_msg.theta != self._targetAngularVelocity:
+            # Then update the target velocities
+            self._targetLinearVelocity = pose_msg.x
+            self._targetAngularVelocity = pose_msg.theta
+            self._logger.info(f"Move order received !\n -> New target velocities (linear={self._targetLinearVelocity}, angular={self._targetAngularVelocity})")
+            # Update and publish current navigation command state
+            self.cmd_nav_publish_callback()
+    
+
+# Execute the function.
+if __name__ == "__main__":
+    startNode()

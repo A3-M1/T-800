@@ -1,0 +1,16 @@
+launch:
+
+    - node:
+        pkg: "rviz2"
+        exec: "rviz2"
+        name: "rviz2"
+
+    - node:
+        pkg: "grp-pibot21-ch1"
+        exec: "emergencystop"
+    - node:
+        pkg: "grp-pibot21-ch1"
+        exec: "mover"
+    - node:
+        pkg: "grp-pibot21-ch1"
+        exec: "navigation"
