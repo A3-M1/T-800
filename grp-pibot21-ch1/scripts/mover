@@ -58,11 +58,11 @@ class ROSMover():
         self._currentAngularVelocity = 0.0
         self._targetAngularVelocity = 0.0
         # Timer to recalculate the current velocity and publish it every 0.2 seconds
-        self._timer_recalculate = rosNode.create_timer(0.2, self.cmd_nav_publish_callback)
+        self._timer_update_cmd_nav = rosNode.create_timer(0.2, self.cmd_nav_publish_callback)
         # Log the start
         self._logger.info('Started !')
 
-    # Navigation command callback, runned after every move (or stop) event callback or loop
+    # Navigation command publisher, runned after every move (or stop) event callback or loop
     def cmd_nav_publish_callback(self):
         # Update the current velocity to reach the target velocity
         self.accel_update()
@@ -113,3 +113,6 @@ class ROSMover():
 # Execute the function.
 if __name__ == "__main__":
     startNode()
+
+
+#TODO: Améliorer la gestion des constantes de temps et mettre en parametre cette cste

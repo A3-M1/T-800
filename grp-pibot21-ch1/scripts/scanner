@@ -1,0 +1,57 @@
+#!/usr/bin/python3
+
+import rclpy # type: ignore
+from rclpy.node import Node # type: ignore
+from std_msgs.msg import Bool # type: ignore
+from sensor_msgs.msg import LaserScan # type: ignore
+
+
+# Default parameters
+DEFAULT_SCAN_TOPIC = '/scan'
+
+
+# Start the node
+def startNode():
+    rclpy.init()
+    aNode= Node("scanner")
+    emergencyStoper = ROSScanner(aNode)
+    # Start infinite loop
+    rclpy.spin(aNode)
+    # Clean everything and switch the light off
+    aNode.destroy_node()
+    rclpy.shutdown()
+
+
+# Node execution
+class ROSScanner():
+    def __init__(self, rosNode):
+        # Logger
+        self._logger = rosNode.get_logger()
+        # Topic parameters
+        rosNode.declare_parameter('scan_topic', DEFAULT_SCAN_TOPIC)
+        self._cmdNavTopic = rosNode.get_parameter('scan_topic').value
+        # Publisher for giving order to the mover
+        self._pub_obstacle = rosNode.create_publisher(Bool, '/t800/obstacle', 10)
+        # Subscriber to scan data
+        self._sub_scan = rosNode.create_subscription(LaserScan, '/scan', self.scan_update_callback, 10)
+        # Variables
+        self._obstacleDetected = False
+        # Log the start
+        self._logger.info('Started !')
+
+    # Obstacle publisher callback, publish when obstacle appear and desappear
+    def scan_publish_callback(self):
+        pass
+    
+    # Check if there is an obstacle or not with the new scan data, call the publisher if something new appear
+    def scan_update_callback(self):
+        pass
+    
+    def interpret_scan(self, scan_msg):
+        pass
+        
+
+
+# Execute the function.
+if __name__ == "__main__":
+    startNode()

@@ -84,3 +84,7 @@ class ROSEmergencyStoper():
 # Execute the function.
 if __name__ == "__main__":
     startNode()
+
+
+#TODO: Ajouter des bruits lors des arrets et le démarage
+#TODO: LED orange si arret manuel, rouge si urgence

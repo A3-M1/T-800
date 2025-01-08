@@ -24,18 +24,14 @@ class ROSNavigator():
         self._logger = rosNode.get_logger()
         # Publisher for giving order to the mover
         self._pub_move = rosNode.create_publisher(Pose2D, '/t800/move', 10)
-        # Timer to publish the move command every 3 seconds
-        self._timer_recalculate = rosNode.create_timer(3, self.move_publish)
         # Variables
         self._i = 0
-        rosNode.declare_parameter( 'my_parameter', 10 )
-        aProgramVariable= rosNode.get_parameter( 'my_parameter' ).value
-
-        print( f"> Parameter value: {aProgramVariable}" )
+        # Timer to publish the move command every 3 seconds
+        self._timer_update_move = rosNode.create_timer(3, self.move_publish)
         # Log the start
         self._logger.info('Started !')
 
-    # Navigation command publisher, runned every 3 seconds
+    # Move command publisher, runned every 3 seconds
     def move_publish(self):
         # Publish the navigation command
         if self._i % 2 == 1:
