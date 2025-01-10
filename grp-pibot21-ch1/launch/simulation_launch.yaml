@@ -11,6 +11,10 @@ launch:
         exec: "mover"
         param:
             - { name: "cmd_nav_topic", value: "/cmd_vel" }
+            - { name: "default_linear_speed", value: 0.05 }
     - node:
         pkg: "grp-pibot21-ch1"
         exec: "navigation"
+    - node:
+        pkg: "grp-pibot21-ch1"
+        exec: "scanner"

@@ -2,7 +2,14 @@
 
 import rclpy # type: ignore
 from rclpy.node import Node # type: ignore
+from std_msgs.msg import Char # type: ignore
 from geometry_msgs.msg import Pose2D # type: ignore
+
+
+# Constants
+OBSTACLE_LEFT = ord('L')
+OBSTACLE_RIGHT = ord('R')
+OBSTACLE_NONE = ord('N')
 
 
 # Start the node
@@ -24,21 +31,51 @@ class ROSNavigator():
         self._logger = rosNode.get_logger()
         # Publisher for giving order to the mover
         self._pub_move = rosNode.create_publisher(Pose2D, '/t800/move', 10)
+        # Subscriber to the scanner analysis
+        self._sub_obstacle = rosNode.create_subscription(Char, '/t800/obstacle', self.obstacle_callback, 10)
         # Variables
-        self._i = 0
-        # Timer to publish the move command every 3 seconds
-        self._timer_update_move = rosNode.create_timer(3, self.move_publish)
+        self._forward = True
+        self._turnLeft = False
+        self._turnRight = False
         # Log the start
         self._logger.info('Started !')
+        # Publish the first move command
+        self.move_publish()
 
-    # Move command publisher, runned every 3 seconds
+    # Move command publisher, 
     def move_publish(self):
-        # Publish the navigation command
-        if self._i % 2 == 1:
-            self._pub_move.publish(Pose2D(x=0.0, theta=1.0))
-        else:
-            self._pub_move.publish(Pose2D(x=1.0, theta=0.0))
-        self._i += 1
+        x, theta = 0.0, 0.0
+        # If we have to move forward, we set the linear speed to 1 time the default speed
+        if self._forward:
+            x = 1.0
+        # If we have to turn left, we set the angular speed to 1 positive time the default speed
+        if self._turnLeft:
+            theta = 1.0
+        # If we have to turn right, we set the angular speed to 1 negative time the default speed
+        elif self._turnRight:
+            theta = -1.0
+        # Publish the move command to the topic
+        self._pub_move.publish(Pose2D(x=x, theta=theta))
+    
+    # Obstacle subscriber callback, set the move command according to the obstacle position
+    def obstacle_callback(self, char_msg):
+        # If the obstacle is on the left, we turn right
+        if char_msg.data == OBSTACLE_LEFT:
+            self._turnLeft = True
+            self._turnRight = False
+            self._forward = False
+        # If the obstacle is on the right, we turn left
+        elif char_msg.data == OBSTACLE_RIGHT:
+            self._turnLeft = False
+            self._turnRight = True
+            self._forward = False
+        # When there is no obstacle, we move forward
+        elif char_msg.data == OBSTACLE_NONE:
+            self._turnLeft = False
+            self._turnRight = False
+            self._forward = True
+        # Publish the move command
+        self.move_publish()
 
 
 # Execute the function.

@@ -2,12 +2,19 @@
 
 import rclpy # type: ignore
 from rclpy.node import Node # type: ignore
-from std_msgs.msg import Bool # type: ignore
+from std_msgs.msg import Char # type: ignore
 from sensor_msgs.msg import LaserScan # type: ignore
+from math import cos, sin
 
 
 # Default parameters
 DEFAULT_SCAN_TOPIC = '/scan'
+DEFAULT_OBSTACLE_DISTANCE = 0.4
+
+# Constants
+OBSTACLE_LEFT = ord('L')
+OBSTACLE_RIGHT = ord('R')
+OBSTACLE_NONE = ord('N')
 
 
 # Start the node
@@ -31,24 +38,53 @@ class ROSScanner():
         rosNode.declare_parameter('scan_topic', DEFAULT_SCAN_TOPIC)
         self._cmdNavTopic = rosNode.get_parameter('scan_topic').value
         # Publisher for giving order to the mover
-        self._pub_obstacle = rosNode.create_publisher(Bool, '/t800/obstacle', 10)
+        self._pub_obstacle = rosNode.create_publisher(Char, '/t800/obstacle', 10)
         # Subscriber to scan data
         self._sub_scan = rosNode.create_subscription(LaserScan, '/scan', self.scan_update_callback, 10)
         # Variables
-        self._obstacleDetected = False
+        self._obstacleDetected = OBSTACLE_NONE
+        self._lastSeenObstacle = OBSTACLE_NONE
+        self._scanAngleMin = 0.0
+        self._scanAngleIncrement = 0.0
+        self._scanRanges = 0.0
         # Log the start
         self._logger.info('Started !')
 
     # Obstacle publisher callback, publish when obstacle appear and desappear
     def scan_publish_callback(self):
-        pass
+        self.interpret_scan()
+        if self._obstacleDetected != self._lastSeenObstacle:
+            self._lastSeenObstacle = self._obstacleDetected
+            self._logger.info(('Obstacle detected on the ' + ('right' if self._obstacleDetected == OBSTACLE_RIGHT else 'left')) if self._obstacleDetected != OBSTACLE_NONE else 'Obstacle undetected')
+            self._pub_obstacle.publish(Char(data=self._obstacleDetected))
     
     # Check if there is an obstacle or not with the new scan data, call the publisher if something new appear
-    def scan_update_callback(self):
-        pass
-    
-    def interpret_scan(self, scan_msg):
-        pass
+    def scan_update_callback(self, scan_msg):
+        self._scanAngleMin = scan_msg.angle_min
+        self._scanAngleIncrement = scan_msg.angle_increment
+        self._scanRanges = scan_msg.ranges
+        obstacle_left, obstacle_right = self.interpret_scan()
+        if obstacle_left :
+            self._obstacleDetected = OBSTACLE_LEFT
+        elif obstacle_right :
+            self._obstacleDetected = OBSTACLE_RIGHT
+        else:
+            self._obstacleDetected = OBSTACLE_NONE
+        self.scan_publish_callback()
+        
+    # Interpret the scan data to detect obstacles and return their position
+    def interpret_scan(self):
+        obstacle_left, obstacle_right = False, False
+        for i, distance in enumerate(self._scanRanges):
+            angle = self._scanAngleMin + i * self._scanAngleIncrement
+            if 0.1 < distance < DEFAULT_OBSTACLE_DISTANCE:
+                x = cos(angle) * distance
+                y = sin(angle) * distance
+                if y > 0 and x > 0:
+                    obstacle_left = True
+                elif y < 0 and x > 0:
+                    obstacle_right = True
+        return obstacle_left, obstacle_right
         
 
 

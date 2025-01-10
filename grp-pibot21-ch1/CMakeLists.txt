@@ -27,6 +27,7 @@ endif()
 install( PROGRAMS scripts/emergencystop DESTINATION lib/${PROJECT_NAME} )
 install( PROGRAMS scripts/mover DESTINATION lib/${PROJECT_NAME} )
 install( PROGRAMS scripts/navigation DESTINATION lib/${PROJECT_NAME} )
+install( PROGRAMS scripts/scanner DESTINATION lib/${PROJECT_NAME} )
 
 # Install resource files. (launch files)
 install(DIRECTORY

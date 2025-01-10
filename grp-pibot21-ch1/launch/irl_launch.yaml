@@ -14,3 +14,6 @@ launch:
     - node:
         pkg: "grp-pibot21-ch1"
         exec: "navigation"
+    - node:
+        pkg: "grp-pibot21-ch1"
+        exec: "scanner"
