@@ -7,11 +7,11 @@ from geometry_msgs.msg import Twist, Vector3, Pose2D # type: ignore
 
 
 # Default parameters
-DEFAULT_LINEAR_SPEED = 0.2
+DEFAULT_LINEAR_SPEED = 0.4
 DEFAULT_ANGULAR_SPEED = 1.0
-DEFAULT_LINEAR_ACCEL_AUG = 0.01
-DEFAULT_LINEAR_ACCEL_DIM = 0.05
-DEFAULT_ANGULAR_ACCEL = 0.2
+DEFAULT_LINEAR_ACCEL_AUG = 0.03
+DEFAULT_LINEAR_ACCEL_DIM = 0.1
+DEFAULT_ANGULAR_ACCEL = 0.4
 DEFAULT_CMD_NAV_TOPIC = '/multi/cmd_nav'
 
 
@@ -103,8 +103,8 @@ class ROSMover():
         # If the move order is triggered, first check if this change something
         if pose_msg.x != self._targetLinearVelocity or pose_msg.theta != self._targetAngularVelocity:
             # Then update the target velocities
-            self._targetLinearVelocity = pose_msg.x
-            self._targetAngularVelocity = pose_msg.theta
+            self._targetLinearVelocity = pose_msg.x * self._linearSpeed
+            self._targetAngularVelocity = pose_msg.theta * self._angularSpeed
             self._logger.info(f"Move order received !\n -> New target velocities (linear={self._targetLinearVelocity}, angular={self._targetAngularVelocity})")
             # Update and publish current navigation command state
             self.cmd_nav_publish_callback()

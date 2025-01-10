@@ -4,6 +4,7 @@ import rclpy # type: ignore
 from rclpy.node import Node # type: ignore
 from std_msgs.msg import Char # type: ignore
 from geometry_msgs.msg import Pose2D # type: ignore
+from random import randint
 
 
 # Constants
@@ -37,6 +38,12 @@ class ROSNavigator():
         self._forward = True
         self._turnLeft = False
         self._turnRight = False
+        self._i = 0
+        self._overturn = False
+        self._beginOverturn = 0
+        self._overturnTime = 0
+        # Timer to count every 0.1 second and differ some actions
+        self._timer_differer = rosNode.create_timer(0.1, self.differer_callback)
         # Log the start
         self._logger.info('Started !')
         # Publish the first move command
@@ -60,22 +67,38 @@ class ROSNavigator():
     # Obstacle subscriber callback, set the move command according to the obstacle position
     def obstacle_callback(self, char_msg):
         # If the obstacle is on the left, we turn right
-        if char_msg.data == OBSTACLE_LEFT:
-            self._turnLeft = True
-            self._turnRight = False
-            self._forward = False
-        # If the obstacle is on the right, we turn left
-        elif char_msg.data == OBSTACLE_RIGHT:
+        if char_msg.data == OBSTACLE_LEFT and not self._turnLeft:
             self._turnLeft = False
             self._turnRight = True
             self._forward = False
-        # When there is no obstacle, we move forward
-        elif char_msg.data == OBSTACLE_NONE:
+            self._logger.info('Turn to the right')
+            # Publish the move command
+            self.move_publish()
+        # If the obstacle is on the right, we turn left
+        elif char_msg.data == OBSTACLE_RIGHT and not self._turnRight:
+            self._turnLeft = True
+            self._turnRight = False
+            self._forward = False
+            self._logger.info('Turn to the left')
+            # Publish the move command
+            self.move_publish()
+        # When there is no obstacle, we move over turn a random number and then go forward
+        else :
+            self._overturn = True
+            self._beginOverturn = self._i
+            self._overturnTime = randint(3, 10)
+            self._logger.info('Begin overturn for a time of ' + str(self._beginOverturn))
+
+    def differer_callback(self) :
+        if self._overturn and self._i > self._beginOverturn + self._overturnTime :
+            self._logger.info('End overturn')
+            self._overturn = False
             self._turnLeft = False
             self._turnRight = False
             self._forward = True
-        # Publish the move command
-        self.move_publish()
+            # Publish the move command
+            self.move_publish()
+        self._i += 1
 
 
 # Execute the function.
