@@ -36,4 +36,10 @@ install(DIRECTORY
   DESTINATION share/${PROJECT_NAME}/
 )
 
+# Install resource files. (config files)
+install(DIRECTORY
+  config
+  DESTINATION share/${PROJECT_NAME}/
+)
+
 ament_package()
