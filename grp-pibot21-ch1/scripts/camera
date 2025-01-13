@@ -13,10 +13,10 @@ import signal
 # Default parameters
 DEFAULT_FPS = 30
 DEFAULT_PIXEL_DETECTION_TRESHOLD = 100
-DEFAULT_LOWER_HUE = 0
-DEFAULT_UPPER_HUE = 10
-DEFAULT_LOWER_SATURATION = 120
-DEFAULT_LOWER_VALUE = 70
+DEFAULT_LOWER_HUE = 30
+DEFAULT_UPPER_HUE = 70
+DEFAULT_LOWER_SATURATION = 100
+DEFAULT_LOWER_VALUE = 50
 
 
 # Global flag to handle Ctrl-C interruption
@@ -38,9 +38,11 @@ def startNode():
     aNode= Node("camera")
     camera = ROSCamera(aNode)
     # Initialize ROS node and camera
-    camera.initializeROSNode(aNode)
+    camera.initializeROSNode()
     # Start infinite loop
     while isOk:
+        camera.image_acquisition()
+        camera.publish_imgs()
         rclpy.spin_once(aNode, timeout_sec=0.001)
     # Clean end
     camera.disconnect()
@@ -57,7 +59,7 @@ class ROSCamera():
         self._pub_detection = rosNode.create_publisher(String, '/t800/detection', 10)
         # Publisher for camera images
         self._pub_color_image = rosNode.create_publisher(Image, '/t800/color_image', 10)
-        self._pub_depth_image = rosNode.create_publisher(Image, '/t800/depth_image', 10)
+        self._pub_depth_colormap = rosNode.create_publisher(Image, '/t800/depth_colormap', 10)
         # Parameters
         rosNode.declare_parameter('fps', DEFAULT_FPS)
         rosNode.declare_parameter('pixel_detection_treshold', DEFAULT_PIXEL_DETECTION_TRESHOLD)
@@ -83,16 +85,15 @@ class ROSCamera():
         self._logger.info('Started !')
     
     # Function to start the initialization of the camera and begin the image aquisition
-    def initializeROSNode(self, aROSNode):
-        # Create a timer to call the image acquisition method
-        self.timer = aROSNode.create_timer(0.033, self.image_acquisition)  # 30Hz
+    def initializeROSNode(self):
         # Initialisation of the camera
         self._init_camera()
     
     # Function to imitialize the camera
     def _init_camera(self):
         # Configure the camera for color
-        self._config.enable_stream(rs.stream.color, 848, 480, rs.format.bgr8, self.fps)
+        self._config.enable_stream(rs.stream.color, 848, 480, rs.format.bgr8, self._fps)
+        self._config.enable_stream(rs.stream.depth, 848, 480, rs.format.z16, self._fps)
         # Start of pipeline
         self._pipeline.start(self._config)
         self._logger.info('Camera initialized !')
@@ -117,21 +118,26 @@ class ROSCamera():
         self._color_frame = frames.get_color_frame()
         self._depth_frame = frames.get_depth_frame()
         # If the color frame is not empty, convert it to a numpy array
-        if not self.color_frame or not self.depth_frame:
-            return None, None
-        self._color_image = np.asanyarray(self.color_frame.get_data())
-        self._depth_image = np.asanyarray(self.depth_frame.get_data())
+        if not (self._color_frame and self._depth_frame):
+            self._color_image = None
+            self._depth_image = None
+            self._depth_colormap = None
+        else :
+            self._color_image = np.asanyarray(self._color_frame.get_data())
+            self._depth_image = np.asanyarray(self._depth_frame.get_data())
+            # Apply a colormap to the depth image
+            self._depth_colormap = cv2.applyColorMap(cv2.convertScaleAbs(self._depth_image, alpha=0.03), cv2.COLORMAP_JET)
 
     # Function to publish the images on the ROS topics
     def publish_imgs(self):
-        if self.color_image is not None and self.depth_image is not None:
+        if self._color_image is not None and self._depth_colormap is not None:
             # Image conversion
             color_msg = self._convert_to_ros_img(self._color_image)
-            depth_msg = self._convert_to_ros_img(self._depth_image)
+            depth_msg = self._convert_to_ros_img(self._depth_colormap)
             # Publish the images
-            self.color_pub.publish(color_msg)
-            self.depth_pub.publish(depth_msg)
-
+            self._pub_color_image.publish(color_msg)
+            self._pub_depth_colormap.publish(depth_msg)
+            
     def _convert_to_ros_img(self, cv_img):
         # Conversion d'une image OpenCV en message Image de ROS
         msg = Image()
@@ -143,7 +149,7 @@ class ROSCamera():
         return msg
 
     # Function to detect the object in the image
-    def detect_object(self, color_image):
+    def detect_object(self):
         # Convert the color image to HSV so that we can apply on the HSV, which is easier than on RGB
         hsv_image = cv2.cvtColor(self._color_image, cv2.COLOR_BGR2HSV)
         # Define the range of color in HSV
