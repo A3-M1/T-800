@@ -46,6 +46,7 @@ class ROSMover():
         rosNode.declare_parameter('linear_accel_aug', DEFAULT_LINEAR_ACCEL_AUG)
         rosNode.declare_parameter('linear_accel_dim', DEFAULT_LINEAR_ACCEL_DIM)
         rosNode.declare_parameter('angular_accel', DEFAULT_ANGULAR_ACCEL)
+        # Constants
         self._linearSpeed = rosNode.get_parameter('linear_speed').value
         self._angularSpeed = rosNode.get_parameter('angular_speed').value
         self._linearAccelAug = rosNode.get_parameter('linear_accel_aug').value
