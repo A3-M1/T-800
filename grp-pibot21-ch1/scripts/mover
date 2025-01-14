@@ -7,10 +7,10 @@ from geometry_msgs.msg import Twist, Vector3, Pose2D # type: ignore
 
 
 # Default parameters
-DEFAULT_LINEAR_SPEED = 0.4
+DEFAULT_LINEAR_SPEED = 0.2
 DEFAULT_ANGULAR_SPEED = 1.0
 DEFAULT_LINEAR_ACCEL_AUG = 0.03
-DEFAULT_LINEAR_ACCEL_DIM = 0.1
+DEFAULT_LINEAR_ACCEL_DIM = 0.06
 DEFAULT_ANGULAR_ACCEL = 0.4
 DEFAULT_CMD_NAV_TOPIC = '/multi/cmd_nav'
 

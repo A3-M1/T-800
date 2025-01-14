@@ -17,7 +17,7 @@ launch:
         exec: "camera"
     
     - node:
-      pkg: "rviz2"
-      exec: "rviz2"
-      name: "rviz2"
-      args: "-d $(find-pkg-share grp-pibot21-ch1)/config/config.rviz"
+        pkg: "rviz2"
+        exec: "rviz2"
+        name: "rviz2"
+        args: "-d $(find-pkg-share grp-pibot21-ch1)/config/config.rviz"
