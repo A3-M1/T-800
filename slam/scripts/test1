@@ -48,7 +48,7 @@ def startNode():
     aNode.destroy_node()
     rclpy.shutdown()
 
-
+'''
 # Node execution
 class ROSSlam():
     def __init__(self, rosNode):
@@ -163,7 +163,7 @@ class ROSSlam():
             self._pub_detection.publish(String(data="Phantom detected !"))
             self._logger.info('Phantom detected ! -> Published on dedicated topic.')
 
-
+'''
 # Execute the function.
 if __name__ == "__main__":
     startNode()
