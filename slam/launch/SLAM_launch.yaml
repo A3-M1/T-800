@@ -1,10 +1,16 @@
 launch:
     
     - include:
-        file: "$(find-pkg-share grp-pibot-ch1)/launch/basic_launch.py"
+        file: "$(find-pkg-share grp-pibot21-ch1)/launch/simulation_launch.yaml"
+        
+    - include:
+        file: "$(find-pkg-share slam_toolbox)/launch/online_sync_launch.py"
+        args: "use_sim_time:=True"
 
-  - node:
-      pkg: "rviz2"
-      exec: "rviz2"
-      name: "rviz2"
-      args: "-d $(find-pkg-share SLAM)/config/config.rviz"
+    - node:
+        pkg: "rviz2"
+        exec: "rviz2"
+        name: "rviz2"
+        args: "-d $(find-pkg-share slam)/config/config.rviz"
+    
+
