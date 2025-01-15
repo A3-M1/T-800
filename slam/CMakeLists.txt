@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.8)
-project(grp-pibot21-ch1)
+project(slam)
 
 if(CMAKE_COMPILER_IS_GNUCXX OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")
   add_compile_options(-Wall -Wextra -Wpedantic)
@@ -34,7 +34,7 @@ install(DIRECTORY
 
 # Install resource files. (config files)
 install(DIRECTORY
-  configSlam
+  config
   DESTINATION share/${PROJECT_NAME}/
 )
 
