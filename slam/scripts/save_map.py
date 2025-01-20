@@ -51,7 +51,7 @@ class ROSmap():
     #def tf_callback(self, msg):
     #   self._logger.info(f"Transform: {msg.transforms}")
     
-    # Tf callback
+    # Pose callback
     def pose_callback(self, msg):
         self._logger.info(f"Pose: {msg.pose}")
 
