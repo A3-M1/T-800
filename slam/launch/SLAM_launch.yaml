@@ -1,15 +1,14 @@
 launch:
-    
-    # Inclure le lancement de simulation
-    - include:
+  # Inclure le lancement de simulation
+  - include:
         file: "$(find-pkg-share grp-pibot21-ch1)/launch/simulation_launch.yaml"
 
-    # Inclure le lancement de slam_toolbox
-    - include:
+  # Inclure le lancement de slam_toolbox
+  - include:
         file: "$(find-pkg-share slam_toolbox)/launch/online_sync_launch.py"
 
-    # Démarrer rviz2
-    - node:
+  # Démarrer rviz2
+  - node:
         pkg: "rviz2"
         exec: "rviz2"
         name: "rviz2"
