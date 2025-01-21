@@ -1,4 +1,4 @@
-launch:
+launch:  
   # Inclure le lancement de simulation
   - include:
         file: "$(find-pkg-share grp-pibot21-ch1)/launch/simulation_launch.yaml"
@@ -13,3 +13,4 @@ launch:
         exec: "rviz2"
         name: "rviz2"
         args: "-d $(find-pkg-share slam)/config/config.rviz"
+

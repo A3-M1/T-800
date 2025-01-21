@@ -24,7 +24,7 @@ if(BUILD_TESTING)
 endif()
 
 # Python scripts
-install( PROGRAMS scripts/save_map.py DESTINATION lib/${PROJECT_NAME} )
+install( PROGRAMS scripts/data_map.py DESTINATION lib/${PROJECT_NAME} )
 
 # Install resource files. (launch files)
 install(DIRECTORY

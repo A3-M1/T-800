@@ -16,7 +16,6 @@ OBSTACLE_LEFT = ord('L')
 OBSTACLE_RIGHT = ord('R')
 OBSTACLE_NONE = ord('N')
 
-
 # Start the node
 def startNode():
     rclpy.init()
