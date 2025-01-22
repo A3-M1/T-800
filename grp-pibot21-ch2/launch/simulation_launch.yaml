@@ -1,0 +1,20 @@
+launch:
+    
+    - include:
+        file: "$(find-pkg-share tbot_sim)/launch/challenge-1.launch.py"
+
+    - node:
+        pkg: "grp-pibot21-ch2"
+        exec: "emergencystop"
+    - node:
+        pkg: "grp-pibot21-ch2"
+        exec: "mover"
+        param:
+            - { name: "cmd_nav_topic", value: "/cmd_vel" }
+            - { name: "default_linear_speed", value: 0.05 }
+    - node:
+        pkg: "grp-pibot21-ch2"
+        exec: "navigation"
+    - node:
+        pkg: "grp-pibot21-ch2"
+        exec: "scanner"

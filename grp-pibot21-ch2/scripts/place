@@ -1,0 +1,89 @@
+#!/usr/bin/python3
+
+import rclpy # type: ignore
+from rclpy.node import Node # type: ignore
+from std_msgs.msg import Bool # type: ignore
+from kobuki_ros_interfaces.msg import BumperEvent, WheelDropEvent, ButtonEvent, Led # type: ignore
+
+
+# Start the node
+def startNode():
+    rclpy.init()
+    aNode= Node("emergency_stop")
+    placer = ROSPlacer(aNode)
+    # Start infinite loop
+    rclpy.spin(aNode)
+    # Clean everything and switch the light off
+    aNode.destroy_node()
+    rclpy.shutdown()
+
+# Node execution
+class ROSPlacer():
+    def __init__(self, rosNode):
+        # Logger
+        self._logger = rosNode.get_logger()
+        # Publisher for emergency stop
+        self._pub_emergency_stop = rosNode.create_publisher(Bool, '/t800/emergency_stop', 10)
+        # Publisher for the LED
+        self._pub_led = rosNode.create_publisher(Led, '/commands/led2', 10)
+        # Subscribers to events that can trigger the emergency stop
+        self._sub_bumper = rosNode.create_subscription(BumperEvent, '/events/bumper',self.bump_callback, 10)
+        self._sub_wheel_drop = rosNode.create_subscription(WheelDropEvent, '/events/wheel_drop',self.wheel_drop_callback, 10)
+        self._sub_button = rosNode.create_subscription(ButtonEvent, '/events/button',self.button_callback, 10)
+        # Emergency stop variable
+        self._emergencyStop = False
+        self._onGround = True
+        self._stopSwitch = False
+        # Log the start
+        self._logger.info('Started !')
+    
+    # Emergency stop check and publish callback, runned after every stop event callback
+    def emergency_stop_publish_callback(self):
+        # Check if the emergency stop is triggered depending on the conditions
+        self._emergencyStop = not self._onGround or self._stopSwitch
+        # Publish the emergency stop
+        self._pub_emergency_stop.publish(Bool(data=self._emergencyStop))
+        # Set the LED in RED if the emergency stop is triggered
+        self._pub_led.publish(Led(value=Led.RED if self._emergencyStop else Led.GREEN))
+        # Log the emergency stop
+        if self._emergencyStop:
+            self._logger.info('/!\ ROBOT STOPPED')
+
+    # Bumper callback
+    def bump_callback(self, msg):
+        # If the bumper is pressed, stop the robot
+        if msg.state == BumperEvent.PRESSED:
+            self._stopSwitch = True
+            self._logger.info(f"Detected a bump! (sensor ID : {msg.bumper})\n -> Stopped the robot !")
+        # Update and publish current emergency stop state
+        self.emergency_stop_publish_callback()
+
+    # Wheel drop callback  
+    def wheel_drop_callback(self, msg):
+        # If the wheel is dropped, stop the robot
+        if msg.state == WheelDropEvent.DROPPED:
+            self._onGround = False
+            self._logger.info(f"Detected a wheel drop ! (sensor ID : {msg.wheel})\n -> Stopped the robot !")
+        if msg.state == WheelDropEvent.RAISED:
+            self._onGround = True
+            self._logger.info(f"Detected a wheel raise ! (sensor ID : {msg.wheel})\n -> Restarted the robot !")
+        # Update and publish current emergency stop state
+        self.emergency_stop_publish_callback()
+    
+    # Button callback
+    def button_callback(self, msg):
+        # If the button is pressed, stop or start the robot
+        if msg.state == ButtonEvent.BUTTON0 and msg.state == ButtonEvent.RELEASED:
+            self._stopSwitch = not self._stopSwitch
+            self._logger.info(f'Stop button pressed ! (sensor ID : {msg.button})\n -> {"Stopped" if self._stopSwitch else "Started"} the robot !')
+        # Update and publish current emergnecy stop state
+        self.emergency_stop_publish_callback()
+
+
+# Execute the function.
+if __name__ == "__main__":
+    startNode()
+
+
+#TODO: Ajouter des bruits lors des arrets et le démarage
+#TODO: LED orange si arret manuel, rouge si urgence
