@@ -1,0 +1,52 @@
+#!/usr/bin/python3
+
+import rclpy # type: ignore
+from rclpy.node import Node # type: ignore
+from nav_msgs.msg import OccupancyGrid
+import numpy as np
+
+
+# Start the node
+def startNode():
+    rclpy.init()
+    aNode= Node("map")
+    mapper = ROSMap(aNode)
+    # Start infinite loop
+    rclpy.spin(aNode)
+    # Clean everything and switch the light off
+    aNode.destroy_node()
+    rclpy.shutdown()
+
+# Node execution
+class ROSMap():
+    def __init__(self, rosNode):
+        # Logger
+        self._logger = rosNode.get_logger()
+        # Subscribers to the map
+        self._sub_map = rosNode.create_subscription(OccupancyGrid, '/map',self.map_callback, 10)
+        # Variables
+        self._map = None
+        self._map_width = None
+        self._map_height = None
+        self._interesting_point = None
+        # Log the start
+        self._logger.info('Started !')
+    
+    # Save the map, get the most intersting point and publish it if it changed
+    def map_callback(self, msg):
+        # Get width and height of the map
+        self._map_width = msg.info.width
+        self._map_height = msg.info.height
+        # Save the map as a 2D array
+        self._map = np.array(msg.data).reshape(self._map_height, self._map_width)
+        # Find the most interesting point to go explore by exluding all the unreachable points
+        newPoint = self.find_interesting_point()
+    
+    # Find the most interesting point to go explore by exluding all the unreachable points
+    def find_interesting_point() :
+        pass
+
+
+# Execute the function.
+if __name__ == "__main__":
+    startNode()

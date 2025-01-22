@@ -91,3 +91,81 @@ def drawPointAndText(image, point, text, color=(0, 0, 255)) :
     draw = cv2.line(draw, (int(x), int(y)), (int(x)+150, int(y)), color, 2)
     draw = cv2.putText(draw, text, (int(x)+10, int(y) -10), cv2.FONT_HERSHEY_DUPLEX, 0.8, color, 1, cv2.LINE_AA)
     return draw
+
+
+def createCircularMeanKernel(radius):
+    """
+    Creates a circular kernel of the given radius.
+
+    Args:
+        radius (int): The radius of the circular kernel.
+
+    Returns:
+        numpy.ndarray: The circular kernel.
+    """
+    # Create a circular kernel
+    kernel = np.zeros((2*radius+1, 2*radius+1), np.uint8)
+    cv2.circle(kernel, (radius, radius), radius, 1, -1)
+    return kernel
+
+
+def applyKernelOnImage(image, kernel):
+    """
+    Applies the given kernel on the given image.
+
+    Args:
+        image (numpy.ndarray): The input image.
+        kernel (numpy.ndarray): The kernel to apply.
+
+    Returns:
+        numpy.ndarray: The image after applying the kernel.
+    """
+    # Apply the kernel on the image
+    return cv2.filter2D(image, -1, kernel)
+
+
+def createRadialGradient(image_shape, center, radius):
+    """
+    Creates a radial gradient image.
+
+    Args:
+        image_shape (tuple): The shape of the output image (height, width).
+        center (tuple): The center coordinates of the gradient (x, y).
+        radius (float): The radius of the gradient.
+
+    Returns:
+        numpy.ndarray: The radial gradient image.
+
+    """
+    cx, cy = center
+    gradient = np.zeros(image_shape, dtype=np.uint8)
+    # Create a grid of coordinates and calculate the distance from the center for each point
+    y, x = np.ogrid[:image_shape[0], :image_shape[1]]
+    distance = np.sqrt((x - cx)**2 + (y - cy)**2)
+    # Normalize the distance to the range [0, 255] and invert the result
+    normalized_distance = np.clip((distance / radius) * 255, 0, 255).astype(np.uint8)
+    gradient = 255 - normalized_distance
+    return gradient
+
+
+def createGrayMaskWithProximityGradient(gray_image, lo, hi, center) :
+    """
+    Create a mask based on the proximity of the pixel to a given center.
+
+    Args:
+        gray_image (numpy.ndarray): The input grayscale image.
+        lo (int): The lower threshold value.
+        hi (int): The upper threshold value.
+        center (tuple): The center coordinates (x, y).
+
+    Returns:
+        numpy.ndarray: The generated mask.
+    """
+    # Create a mask based on the proximity of the pixel to the center
+    mask = cv2.inRange(gray_image, lo, hi)
+    # Create a radial gradient
+    radius = min(gray_image.shape) // 2
+    gradient = createRadialGradient(gray_image.shape, center, radius)
+    # Combine the mask and the gradient
+    mask = cv2.bitwise_and(mask, gradient)
+    return mask
