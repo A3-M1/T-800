@@ -13,3 +13,7 @@ launch:
         exec: "rviz2"
         name: "rviz2"
         args: "-d $(find-pkg-share slam)/config/config.rviz"
+  
+  - node:
+        pkg: "slam"
+        exec: "navigation2"

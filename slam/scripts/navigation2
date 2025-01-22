@@ -1,14 +1,24 @@
 #!/usr/bin/python3
 
 import rclpy # type: ignore
+import math
 from rclpy.node import Node # type: ignore
 from std_msgs.msg import Char # type: ignore
-from geometry_msgs.msg import Pose2D # type: ignore
+from geometry_msgs.msg import Pose2D, PoseWithCovarianceStamped, TransformStamped, Pose, Transform, Vector3, Point, Quaternion, Twist # type: ignore
 from random import randint
+import numpy as np
 from nav_msgs.msg import OccupancyGrid
 from nav_msgs.msg import MapMetaData
 from tf2_msgs.msg import TFMessage
-from geometry_msgs.msg import PoseWithCovarianceStamped, TransformStamped, Pose, Transform, Vector3, Point, Quaternion
+
+def angle_obj(xa, xb, ya, yb):
+    
+    if xb > xa:
+        alpha = math.atan2(abs(yb-ya)/abs(xb-xa))
+    else:
+        alpha = 0.5 + math.atan2(abs(xb-xa)/abs(yb-ya))
+    
+    return alpha
 
 # Constants
 OBSTACLE_LEFT = ord('L')
@@ -19,8 +29,8 @@ OBSTACLE_NONE = ord('N')
 # Start the node
 def startNode():
     rclpy.init()
-    aNode= Node("navigation")
-    navigator = ROSNavigator(aNode)
+    aNode= Node("navigation2")
+    emergencyStoper = ROSNavigator2(aNode)
     # Start infinite loop
     rclpy.spin(aNode)
     # Clean everything and switch the light off
@@ -29,14 +39,19 @@ def startNode():
 
 
 # Node execution
-class ROSNavigator():
+class ROSNavigator2():
     def __init__(self, rosNode):
         # Logger
         self._logger = rosNode.get_logger()
         # Publisher for giving order to the mover
         self._pub_move = rosNode.create_publisher(Pose2D, '/t800/move', 10)
         # Subscriber to the scanner analysis
-        self._sub_obstacle = rosNode.create_subscription(Char, '/t800/obstacle', self.obstacle_callback, 10)   
+        self._sub_obstacle = rosNode.create_subscription(Char, '/t800/obstacle', self.obstacle_callback, 10)
+        # Subscribers to events that can trigger the emergency stop
+        self._sub_map = rosNode.create_subscription(OccupancyGrid, '/map',self.map_callback, 10)
+        self._sub_map_metadata = rosNode.create_subscription(MapMetaData, '/map_metadata',self.map_metadata_callback, 10)
+        self._sub_tf= rosNode.create_subscription(TFMessage, '/tf',self.tf_callback, 10)
+        self._sub_tf= rosNode.create_subscription(PoseWithCovarianceStamped, '/pose',self.pose_callback, 10)
         # Variables
         self._forward = True
         self._turnLeft = False
@@ -45,7 +60,9 @@ class ROSNavigator():
         self._overturn = False
         self._beginOverturn = 0
         self._overturnTime = 0
-
+        self._position_x = 0
+        self._position_y = 0
+        self._orientation = 0
         # Timer to count every 0.1 second and differ some actions
         self._timer_differer = rosNode.create_timer(0.1, self.differer_callback)
         # Log the start
@@ -53,12 +70,25 @@ class ROSNavigator():
         # Publish the first move command
         self.move_publish()
 
+    # Pose callback
+    def pose_callback(self, msg):
+    #    # Access the position
+        position = msg.pose.pose.position
+        orientation = msg.pose.pose.orientation
+
+        self._position_x = position.x
+        self._position_y = position.y
+        self._orientation = orientation.z
+
     # Move command publisher, 
     def move_publish(self):
         x, theta = 0.0, 0.0
         # If we have to move forward, we set the linear speed to 1 time the default speed
         if self._forward:
-            theta = 1.0
+            x = 1.0
+            theta = self._orientation
+            angle_obj(self._position_x, 5, self._position_y = position.y, 5)
+            theta = self._angle
         # If we have to turn left, we set the angular speed to 1 positive time the default speed
         if self._turnLeft:
             theta = 1.0
@@ -67,9 +97,22 @@ class ROSNavigator():
             theta = -1.0
         # Publish the move command to the topic
         self._pub_move.publish(Pose2D(x=x, theta=theta))
+
     
     # Obstacle subscriber callback, set the move command according to the obstacle position
     def obstacle_callback(self, char_msg):
+
+         scale_rotation_rate = 1.0
+                msg.angular.z = scale_rotation_rate * math.atan2(
+                    t.transform.translation.y,
+                    t.transform.translation.x)
+
+                scale_forward_speed = 0.5
+                msg.linear.x = scale_forward_speed * math.sqrt(
+                    t.transform.translation.x ** 2 +
+                    t.transform.translation.y ** 2)
+
+
         # If the obstacle is on the left, we turn right
         if char_msg.data == OBSTACLE_LEFT and not self._turnLeft:
             self._turnLeft = False
@@ -78,6 +121,7 @@ class ROSNavigator():
             self._logger.info('Turn to the right')
             # Publish the move command
             self.move_publish()
+
         # If the obstacle is on the right, we turn left
         elif char_msg.data == OBSTACLE_RIGHT and not self._turnRight:
             self._turnLeft = True

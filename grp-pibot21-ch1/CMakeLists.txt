@@ -29,6 +29,8 @@ install( PROGRAMS scripts/mover DESTINATION lib/${PROJECT_NAME} )
 install( PROGRAMS scripts/navigation DESTINATION lib/${PROJECT_NAME} )
 install( PROGRAMS scripts/scanner DESTINATION lib/${PROJECT_NAME} )
 install( PROGRAMS scripts/camera DESTINATION lib/${PROJECT_NAME} )
+install( PROGRAMS scripts/navigation2 DESTINATION lib/${PROJECT_NAME} )
+install( PROGRAMS scripts/navigation3 DESTINATION lib/${PROJECT_NAME} )
 
 # Install resource files. (launch files)
 install(DIRECTORY

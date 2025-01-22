@@ -1,0 +1,129 @@
+#!/usr/bin/python3
+import math
+import rclpy
+from rclpy.node import Node
+from std_msgs.msg import Char
+from random import randint
+#from tf_transformations import euler_from_quaternion  # Pour convertir quaternion en yaw
+from nav_msgs.msg import OccupancyGrid
+from nav_msgs.msg import MapMetaData
+from tf2_msgs.msg import TFMessage
+from geometry_msgs.msg import Pose2D, PoseWithCovarianceStamped, TransformStamped, Pose, Transform, Vector3, Point, Quaternion
+
+# Constants
+OBSTACLE_LEFT = ord('L')
+OBSTACLE_RIGHT = ord('R')
+OBSTACLE_NONE = ord('N')
+
+POINTX = 5
+POINTY = 5 
+
+def angle_obj(xa, xb, ya, yb):  
+    """Calcule l'angle entre deux points dans un plan cartésien."""
+    if xb == xa:  
+        return 1.5
+    if yb == ya: 
+        return 1
+    
+    alpha = 0.0
+    if xb > xa and yb > ya:
+        alpha = math.atan((yb-ya)/(xb-xa))
+    elif xa > xb and yb > ya:
+        alpha = 0.5 + math.atan((xb-xa)/(yb-ya))  
+    elif xb < xa and yb < ya:
+        alpha = 1 + math.atan((ya-yb)/(xa-xb))
+    elif xa < xb and yb < ya:
+        alpha = 1.5 + math.atan((xb-xa)/(ya-yb))  
+    return alpha
+
+def normalize_angle(angle):
+    """Normalise un angle pour qu'il soit compris entre -π et π."""
+    return math.atan2(math.sin(angle), math.cos(angle))
+
+def startNode():
+    """Démarre le nœud ROS2."""
+    rclpy.init()
+    aNode = Node("navigation3")
+    navigator3 = ROSNavigator(aNode)
+    rclpy.spin(aNode)
+    aNode.destroy_node()
+    rclpy.shutdown()
+
+class ROSNavigator():
+    def __init__(self, rosNode):
+        self._logger = rosNode.get_logger()
+        self._pub_move = rosNode.create_publisher(Pose2D, '/t800/move', 10)
+        self._sub_obstacle = rosNode.create_subscription(Char, '/t800/obstacle', self.obstacle_callback, 10)
+        self._sub_tf = rosNode.create_subscription(PoseWithCovarianceStamped, '/pose', self.pose_callback, 10)      
+        self._forward = True
+        self._turnLeft = False
+        self._turnRight = False
+        self._i = 0
+        self._overturn = False
+        self._beginOverturn = 0
+        self._overturnTime = 0
+        self._position_x = 0
+        self._position_y = 0
+        self._orientation = 0
+        self._test_rota = False
+        self._timer_differer = rosNode.create_timer(0.1, self.differer_callback)
+        self._logger.info('Started !')
+        self.move_publish()
+
+    def pose_callback(self, msg):
+        """Callback pour la mise à jour de la position et de l'orientation."""
+        position = msg.pose.pose.position
+        orientation = msg.pose.pose.orientation
+        self._position_x = position.x
+        self._position_y = position.y
+        self._orientation = orientation
+        self._logger.info(orientation)
+
+    def move_publish(self):
+        """Publie les commandes de mouvement."""
+        x, theta = 0.0, 0.0
+        if self._forward:
+            alpha = angle_obj(self._position_x, POINTX, self._position_y, POINTY)
+            #alpha = normalize_angle(alpha)
+            if not self._test_rota:
+                theta = 0.5
+                if abs(alpha - self._orientation) <= 0.2:
+                    theta = 0.0
+                    self._test_rota = True
+            else:
+                x = 1.0
+        if self._turnLeft:
+            theta = 1.0
+        elif self._turnRight:
+            theta = -1.0
+        self._pub_move.publish(Pose2D(x=x, theta=theta))
+
+    def obstacle_callback(self, char_msg):
+        """Callback pour réagir aux obstacles détectés."""
+        if char_msg.data == OBSTACLE_LEFT and not self._turnLeft:
+            self._turnLeft = False
+            self._turnRight = True
+            self._forward = False
+            self.move_publish()
+        elif char_msg.data == OBSTACLE_RIGHT and not self._turnRight:
+            self._turnLeft = True
+            self._turnRight = False
+            self._forward = False
+            self.move_publish()
+        else:
+            self._overturn = True
+            self._beginOverturn = self._i
+            self._overturnTime = randint(3, 10)
+
+    def differer_callback(self):
+        """Callback pour gérer le dépassement des obstacles."""
+        if self._overturn and self._i > self._beginOverturn + self._overturnTime:
+            self._overturn = False
+            self._turnLeft = False
+            self._turnRight = False
+            self._forward = True
+            self.move_publish()
+        self._i += 1
+
+if __name__ == "__main__":
+    startNode()
