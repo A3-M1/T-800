@@ -93,7 +93,7 @@ def drawPointAndText(image, point, text, color=(0, 0, 255)) :
     return draw
 
 
-def createCircularMeanKernel(radius):
+def createCircularKernel(radius):
     """
     Creates a circular kernel of the given radius.
 

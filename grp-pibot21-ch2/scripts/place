@@ -2,9 +2,16 @@
 
 import rclpy # type: ignore
 from rclpy.node import Node # type: ignore
-from std_msgs.msg import Bool # type: ignore
-from kobuki_ros_interfaces.msg import BumperEvent, WheelDropEvent, ButtonEvent, Led # type: ignore
+from geometry_msgs.msg import Point
+from tf2_geometry_msgs import do_transform_point
+from visualization_msgs.msg import Marker
+from tf2_ros import TransformException
+from tf2_ros.buffer import Buffer
+from tf2_ros.transform_listener import TransformListener
 
+
+# Default parameters
+DEFAULT_RADIUS_SAME_PHANTOM = 0.15
 
 # Start the node
 def startNode():
@@ -22,68 +29,69 @@ class ROSPlacer():
     def __init__(self, rosNode):
         # Logger
         self._logger = rosNode.get_logger()
-        # Publisher for emergency stop
-        self._pub_emergency_stop = rosNode.create_publisher(Bool, '/t800/emergency_stop', 10)
-        # Publisher for the LED
-        self._pub_led = rosNode.create_publisher(Led, '/commands/led2', 10)
-        # Subscribers to events that can trigger the emergency stop
-        self._sub_bumper = rosNode.create_subscription(BumperEvent, '/events/bumper',self.bump_callback, 10)
-        self._sub_wheel_drop = rosNode.create_subscription(WheelDropEvent, '/events/wheel_drop',self.wheel_drop_callback, 10)
-        self._sub_button = rosNode.create_subscription(ButtonEvent, '/events/button',self.button_callback, 10)
-        # Emergency stop variable
-        self._emergencyStop = False
-        self._onGround = True
-        self._stopSwitch = False
+        # Publisher for adding markers
+        self._pub_markers = rosNode.create_publisher(Marker, '/t800/phantoms_markers', 10)
+        # Subscribers to detection of phantoms
+        self._sub_detection = rosNode.create_subscription(Point, '/t800/detection_position', self.detection_callback, 10)
+        # Subscribers to camera link TF
+        self._sub_detection = rosNode.create_subscription(Point, '/', self.detection_callback, 10)
+        # TF2 Buffer
+        self._tfBuffer = Buffer()
+        # TF2 Listener
+        self._tfListener = TransformListener(self._tfBuffer, rosNode)
+        # Variables
+        self._phantoms = []
         # Log the start
         self._logger.info('Started !')
     
-    # Emergency stop check and publish callback, runned after every stop event callback
-    def emergency_stop_publish_callback(self):
-        # Check if the emergency stop is triggered depending on the conditions
-        self._emergencyStop = not self._onGround or self._stopSwitch
-        # Publish the emergency stop
-        self._pub_emergency_stop.publish(Bool(data=self._emergencyStop))
-        # Set the LED in RED if the emergency stop is triggered
-        self._pub_led.publish(Led(value=Led.RED if self._emergencyStop else Led.GREEN))
-        # Log the emergency stop
-        if self._emergencyStop:
-            self._logger.info('/!\ ROBOT STOPPED')
-
-    # Bumper callback
-    def bump_callback(self, msg):
-        # If the bumper is pressed, stop the robot
-        if msg.state == BumperEvent.PRESSED:
-            self._stopSwitch = True
-            self._logger.info(f"Detected a bump! (sensor ID : {msg.bumper})\n -> Stopped the robot !")
-        # Update and publish current emergency stop state
-        self.emergency_stop_publish_callback()
-
-    # Wheel drop callback  
-    def wheel_drop_callback(self, msg):
-        # If the wheel is dropped, stop the robot
-        if msg.state == WheelDropEvent.DROPPED:
-            self._onGround = False
-            self._logger.info(f"Detected a wheel drop ! (sensor ID : {msg.wheel})\n -> Stopped the robot !")
-        if msg.state == WheelDropEvent.RAISED:
-            self._onGround = True
-            self._logger.info(f"Detected a wheel raise ! (sensor ID : {msg.wheel})\n -> Restarted the robot !")
-        # Update and publish current emergency stop state
-        self.emergency_stop_publish_callback()
+    # When a new phantom is detected, this function verify if it is already in the database and add it if not, then publish the new markers
+    def detection_callback(self, msg):
+        # Check if the phantom is already in the database
+        for phantom in self._phantoms:
+            if abs(phantom.x - msg.x) < DEFAULT_RADIUS_SAME_PHANTOM and abs(phantom.y - msg.y) < DEFAULT_RADIUS_SAME_PHANTOM:
+                return None
+        # Extract the transformation needed to convert the point from camera_link to map
+        try:
+            t = self.tf_buffer.lookup_transform('map', 'camera_link', rclpy.time.Time())
+        except TransformException as e:
+            self._logger.warning('Could not transform map to camera_link:' + str(e))
+            return None
+        # Transform the point
+        point = do_transform_point(msg, t)
+        # Add the phantom to the list
+        self._phantoms.append(point)
+        # Publish the new marker
+        self.publish_new_markers()
     
-    # Button callback
-    def button_callback(self, msg):
-        # If the button is pressed, stop or start the robot
-        if msg.state == ButtonEvent.BUTTON0 and msg.state == ButtonEvent.RELEASED:
-            self._stopSwitch = not self._stopSwitch
-            self._logger.info(f'Stop button pressed ! (sensor ID : {msg.button})\n -> {"Stopped" if self._stopSwitch else "Started"} the robot !')
-        # Update and publish current emergnecy stop state
-        self.emergency_stop_publish_callback()
+    # Publish a new marker
+    def publish_new_markers(self):
+        # Create the marker
+        marker = Marker()
+        marker.header.frame_id = "map"
+        marker.header.stamp = self._ros_node.get_clock().now().to_msg()
+        marker.ns = "phantom" + str(len(self._phantoms))
+        marker.id = len(self._phantoms)
+        marker.type = Marker.POINTS
+        marker.action = Marker.ADD
+        marker.pose.position.x = self._phantoms[-1].x
+        marker.pose.position.y = self._phantoms[-1].y
+        marker.pose.position.z = 0
+        marker.pose.orientation.x = 0.0
+        marker.pose.orientation.y = 0.0
+        marker.pose.orientation.z = 0.0
+        marker.pose.orientation.w = 1.0
+        marker.scale.x = 0.1
+        marker.scale.y = 0.1
+        marker.scale.z = 0.1
+        marker.color.a = 1.0
+        marker.color.r = 1.0
+        marker.color.g = 0.0
+        marker.color.b = 0.0
+        # Publish the marker
+        self._pub_markers.publish(marker)
+    
 
 
 # Execute the function.
 if __name__ == "__main__":
     startNode()
-
-
-#TODO: Ajouter des bruits lors des arrets et le démarage
-#TODO: LED orange si arret manuel, rouge si urgence
