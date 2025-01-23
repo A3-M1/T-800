@@ -24,7 +24,6 @@ def angle_obj(xa, xb, ya, yb):
         return 1.5
     if yb == ya: 
         return 1
-    
     alpha = 0.0
     if xb > xa and yb > ya:
         alpha = math.atan((yb-ya)/(xb-xa))
@@ -52,9 +51,9 @@ def startNode():
 class ROSNavigator():
     def __init__(self, rosNode):
         self._logger = rosNode.get_logger()
+        self._sub_tf = rosNode.create_subscription(PoseWithCovarianceStamped, '/pose', self.pose_callback, 10)  
         self._pub_move = rosNode.create_publisher(Pose2D, '/t800/move', 10)
         self._sub_obstacle = rosNode.create_subscription(Char, '/t800/obstacle', self.obstacle_callback, 10)
-        self._sub_tf = rosNode.create_subscription(PoseWithCovarianceStamped, '/pose', self.pose_callback, 10)      
         self._forward = True
         self._turnLeft = False
         self._turnRight = False
@@ -72,17 +71,18 @@ class ROSNavigator():
 
     def pose_callback(self, msg):
         """Callback pour la mise à jour de la position et de l'orientation."""
-        position = msg.pose.pose.position
-        orientation = msg.pose.pose.orientation
-        self._position_x = position.x
-        self._position_y = position.y
-        self._orientation = orientation
-        self._logger.info(orientation)
+        self._position_x = msg.pose.pose.position.x
+        self._position_y = msg.pose.pose.position.y
+        self._orientation = msg.pose.pose.orientation
+        self._logger.info(self._orientation)
 
     def move_publish(self):
         """Publie les commandes de mouvement."""
         x, theta = 0.0, 0.0
         if self._forward:
+            theta = 1.0
+            self._logger.info(self._orientation)
+            """
             alpha = angle_obj(self._position_x, POINTX, self._position_y, POINTY)
             #alpha = normalize_angle(alpha)
             if not self._test_rota:
@@ -92,6 +92,7 @@ class ROSNavigator():
                     self._test_rota = True
             else:
                 x = 1.0
+            """
         if self._turnLeft:
             theta = 1.0
         elif self._turnRight:

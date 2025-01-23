@@ -63,10 +63,6 @@ class ROSmap():
                     best_j = j + 5
     return(best_i, best_j)  
 
-
-
-
-
 # Execute the function.
 if __name__ == "__main__":
     startNode()

@@ -3,10 +3,6 @@ launch:
     - include:
         file: "$(find-pkg-share tbot_sim)/launch/challenge-1.launch.py"
 
-
-    - include:
-        file: "$(find-pkg-share slam_toolbox)/launch/online_sync_launch.py"
-
     - node:
         pkg: "grp-pibot21-ch1"
         exec: "emergencystop"
@@ -18,7 +14,7 @@ launch:
             - { name: "default_linear_speed", value: 0.05 }
     - node:
         pkg: "grp-pibot21-ch1"
-        exec: "navigation"
+        exec: "navigation2"
     - node:
         pkg: "grp-pibot21-ch1"
         exec: "scanner"

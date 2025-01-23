@@ -34,8 +34,8 @@ class ROSmap():
         #self._sub_map_metadata = rosNode.create_subscription(MapMetaData, '/map_metadata',self.map_metadata_callback, 10)
         #self._sub_tf= rosNode.create_subscription(TFMessage, '/tf',self.tf_callback, 10)
         self._sub_tf= rosNode.create_subscription(PoseWithCovarianceStamped, '/pose',self.pose_callback, 10)
-        self._angle = 0
-        self._distance = 0
+        #self._angle = 0
+        #self._distance = 0
         # Log the start
         self._logger.info('Started !')
 
@@ -68,14 +68,12 @@ class ROSmap():
 
         #if self._angle != -2.163802305531382 and self._distance != 0.024475186458227053:
         #self._logger.info(f"angle={self._angle*57,2958}, distance={self._distance}")
-
         #self._logger.info(f"Transform: {msg.transforms}")
 
     # Pose callback
     def pose_callback(self, msg):
     #    # Access the position
         position = msg.pose.pose.position
-        self._logger.info("ffpiçsqdhfpisqdrfpsd")
         self._logger.info(f"Position: x={position.x}, y={position.y}, z={position.z}")
         orientation = msg.pose.pose.orientation
         self._logger.info(f"Orientation: x={orientation.x}, y={orientation.y}, z={orientation.z}, w={orientation.w}")

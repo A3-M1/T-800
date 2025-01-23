@@ -19,14 +19,18 @@ POINTX = 5
 POINTY = 5 
 
 def angle_obj(xa, xb, ya, yb):  
+    if xb == xa:  
+        return 1.5
+    if yb == ya: 
+        return 1
     alpha = 0.0
     if xb > xa and yb > ya:
         alpha = math.atan((yb-ya)/(xb-xa))
-    if xa > xb and yb > ya:
+    elif xa > xb and yb > ya:
         alpha = 0.5 + math.atan((xb-xa)/(yb-ya))  
-    if xb < xa and yb < ya:
+    elif xb < xa and yb < ya:
         alpha = 1 + math.atan((ya-yb)/(xa-xb))
-    if xa < xb and yb < ya:
+    elif xa < xb and yb < ya:
         alpha = 1.5 + math.atan((xb-xa)/(ya-yb))  
     return alpha
 
@@ -47,11 +51,12 @@ class ROSNavigator():
     def __init__(self, rosNode):
         # Logger
         self._logger = rosNode.get_logger()
+        # Suscriber for the position annd the orientation of the bot       
+        #self._sub_tf= rosNode.create_subscription(PoseWithCovarianceStamped, '/pose',self.pose_callback, 10)  
         # Publisher for giving order to the mover
         self._pub_move = rosNode.create_publisher(Pose2D, '/t800/move', 10)
         # Subscriber to the scanner analysis
         self._sub_obstacle = rosNode.create_subscription(Char, '/t800/obstacle', self.obstacle_callback, 10)
-        self._sub_tf= rosNode.create_subscription(PoseWithCovarianceStamped, '/pose',self.pose_callback, 10)      
         # Variables
         self._forward = True
         self._turnLeft = False
@@ -70,7 +75,7 @@ class ROSNavigator():
         self._logger.info('Started !')
         # Publish the first move command
         self.move_publish()
-
+"""
     # Pose callback
     def pose_callback(self, msg):
         # Access the position
@@ -79,22 +84,26 @@ class ROSNavigator():
         self._position_x = position.x
         self._position_y = position.y
         self._orientation = orientation.z
-        #self._logger.info(f"Position: x={self._position_x}, y={self._position_y}")
-        #self._logger.info(f"Orientation: z={self._orientation}")
+"""
 
     # Move command publisher, 
     def move_publish(self):
         x, theta = 0.0, 0.0
         if self._forward:
-            if  self._test_rota == False:
-                theta = 1.0
-                x = 0.0 
-                alpha = angle_obj(self._position_x, POINTX, self._position_y, POINTY)
-                if alpha - 0.1 <= self._orientation <= alpha + 0.1:
+            x = 1.0
+            #self._logger.info(f"Position: x={self._position_x}, y={self._position_y}")
+            #self._logger.info(f"Orientation: z={self._orientation}")
+            #self._logger.info("ghjdghjdgjh")
+            """
+            alpha = angle_obj(self._position_x, POINTX, self._position_y, POINTY)
+            if not self._test_rota:
+                theta = 0.5
+                if abs(alpha - self._orientation) <= 0.3:
                     theta = 0.0
-                    self._test_rota = True 
+                    self._test_rota = True
             else:
-                x = 1.0 
+                x = 1.0
+            """
         # If we have to turn left, we set the angular speed to 1 positive time the default speed
         if self._turnLeft:
             theta = 1.0
