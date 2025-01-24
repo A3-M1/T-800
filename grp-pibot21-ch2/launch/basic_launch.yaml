@@ -1,5 +1,8 @@
 launch:
 
+    - include:
+        file: "$(find-pkg-share slam_toolbox)/launch/online_sync_launch.py"
+
     - node:
         pkg: "grp-pibot21-ch2"
         exec: "emergencystop"

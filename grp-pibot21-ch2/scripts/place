@@ -2,7 +2,7 @@
 
 import rclpy # type: ignore
 from rclpy.node import Node # type: ignore
-from geometry_msgs.msg import Point
+from geometry_msgs.msg import Point, PointStamped
 from tf2_geometry_msgs import do_transform_point
 from visualization_msgs.msg import Marker
 from tf2_ros import TransformException
@@ -27,6 +27,8 @@ def startNode():
 # Node execution
 class ROSPlacer():
     def __init__(self, rosNode):
+        # Node
+        self._ros_node = rosNode
         # Logger
         self._logger = rosNode.get_logger()
         # Publisher for adding markers
@@ -44,20 +46,24 @@ class ROSPlacer():
     
     # When a new phantom is detected, this function verify if it is already in the database and add it if not, then publish the new markers
     def detection_callback(self, msg):
-        # Check if the phantom is already in the database
-        for phantom in self._phantoms:
-            if abs(phantom.x - msg.x) < DEFAULT_RADIUS_SAME_PHANTOM and abs(phantom.y - msg.y) < DEFAULT_RADIUS_SAME_PHANTOM:
-                return None
+        
         # Extract the transformation needed to convert the point from camera_link to map
         try:
-            t = self.tf_buffer.lookup_transform('map', 'camera_link', rclpy.time.Time())
+            t = self._tfBuffer.lookup_transform('map', 'camera_link', rclpy.time.Time())
         except TransformException as e:
             self._logger.warning('Could not transform map to camera_link:' + str(e))
             return None
         # Transform the point
-        point = do_transform_point(msg, t)
+        cam_point = PointStamped(point=msg)
+        point = do_transform_point(cam_point, t)
+        point = point.point
+        # Check if the phantom is already in the database
+        for phantom in self._phantoms:
+            if abs(phantom.x - point.x) < DEFAULT_RADIUS_SAME_PHANTOM and abs(phantom.y - point.y) < DEFAULT_RADIUS_SAME_PHANTOM:
+                return None
         # Add the phantom to the list
         self._phantoms.append(point)
+        self._logger.info("Phantom found at : " + str(point.x) + "," + str(point.y))
         # Publish the new marker
         self.publish_new_markers()
     
@@ -71,16 +77,16 @@ class ROSPlacer():
         marker.id = len(self._phantoms)
         marker.type = Marker.POINTS
         marker.action = Marker.ADD
-        marker.pose.position.x = self._phantoms[-1].x
-        marker.pose.position.y = self._phantoms[-1].y
-        marker.pose.position.z = 0
+        marker.pose.position.x = float(self._phantoms[-1].x)
+        marker.pose.position.y = float(self._phantoms[-1].y)
+        marker.pose.position.z = 0.0
         marker.pose.orientation.x = 0.0
         marker.pose.orientation.y = 0.0
         marker.pose.orientation.z = 0.0
         marker.pose.orientation.w = 1.0
-        marker.scale.x = 0.1
-        marker.scale.y = 0.1
-        marker.scale.z = 0.1
+        marker.scale.x = 1
+        marker.scale.y = 1
+        marker.scale.z = 1
         marker.color.a = 1.0
         marker.color.r = 0.0
         marker.color.g = 1.0
