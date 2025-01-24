@@ -75,7 +75,7 @@ class ROSPlacer():
         marker.header.stamp = self._ros_node.get_clock().now().to_msg()
         marker.ns = "phantom" + str(len(self._phantoms))
         marker.id = len(self._phantoms)
-        marker.type = Marker.POINTS
+        marker.type = Marker.SPHERE
         marker.action = Marker.ADD
         marker.pose.position.x = float(self._phantoms[-1].x)
         marker.pose.position.y = float(self._phantoms[-1].y)
@@ -84,13 +84,14 @@ class ROSPlacer():
         marker.pose.orientation.y = 0.0
         marker.pose.orientation.z = 0.0
         marker.pose.orientation.w = 1.0
-        marker.scale.x = 1
-        marker.scale.y = 1
-        marker.scale.z = 1
+        marker.scale.x = 1.0
+        marker.scale.y = 1.0
+        marker.scale.z = 1.0
         marker.color.a = 1.0
         marker.color.r = 0.0
         marker.color.g = 1.0
         marker.color.b = 0.0
+        marker.lifetime = 0
         # Publish the marker
         self._pub_markers.publish(marker)
     
