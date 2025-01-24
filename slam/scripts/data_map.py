@@ -30,21 +30,21 @@ class ROSmap():
         # Logger
         self._logger = rosNode.get_logger()
         # Subscribers to events that can trigger the emergency stop
-        #self._sub_map = rosNode.create_subscription(OccupancyGrid, '/map',self.map_callback, 10)
+        self._sub_map = rosNode.create_subscription(OccupancyGrid, '/map',self.map_callback, 10)
         #self._sub_map_metadata = rosNode.create_subscription(MapMetaData, '/map_metadata',self.map_metadata_callback, 10)
         #self._sub_tf= rosNode.create_subscription(TFMessage, '/tf',self.tf_callback, 10)
-        self._sub_tf= rosNode.create_subscription(PoseWithCovarianceStamped, '/pose',self.pose_callback, 10)
+        #self._sub_tf= rosNode.create_subscription(PoseWithCovarianceStamped, '/pose',self.pose_callback, 10)
         #self._angle = 0
         #self._distance = 0
         # Log the start
         self._logger.info('Started !')
 
     # Map callback
-    #def map_callback(self, msg):
+    def map_callback(self, msg):
         # 100 = mur
         # -1 = jsp
         # 0 = libre
-        #self._logger.info(msg.data)
+        self._logger.info(msg.data)
         #tab_map = np.reshape(msg.data, (msg.info.width, msg.info.height )
         #self._logger.info(str(tab_map)))
 
@@ -71,12 +71,12 @@ class ROSmap():
         #self._logger.info(f"Transform: {msg.transforms}")
 
     # Pose callback
-    def pose_callback(self, msg):
+    #def pose_callback(self, msg):
     #    # Access the position
-        position = msg.pose.pose.position
-        self._logger.info(f"Position: x={position.x}, y={position.y}, z={position.z}")
-        orientation = msg.pose.pose.orientation
-        self._logger.info(f"Orientation: x={orientation.x}, y={orientation.y}, z={orientation.z}, w={orientation.w}")
+    #    position = msg.pose.pose.position
+    #    self._logger.info(f"Position: x={position.x}, y={position.y}, z={position.z}")
+    #    orientation = msg.pose.pose.orientation
+     #   self._logger.info(f"Orientation: x={orientation.x}, y={orientation.y}, z={orientation.z}, w={orientation.w}")
 
 # Execute the function.
 if __name__ == "__main__":
