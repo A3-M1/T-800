@@ -33,8 +33,6 @@ class ROSPlacer():
         self._pub_markers = rosNode.create_publisher(Marker, '/t800/phantoms_markers', 10)
         # Subscribers to detection of phantoms
         self._sub_detection = rosNode.create_subscription(Point, '/t800/detection_position', self.detection_callback, 10)
-        # Subscribers to camera link TF
-        self._sub_detection = rosNode.create_subscription(Point, '/', self.detection_callback, 10)
         # TF2 Buffer
         self._tfBuffer = Buffer()
         # TF2 Listener
@@ -84,8 +82,8 @@ class ROSPlacer():
         marker.scale.y = 0.1
         marker.scale.z = 0.1
         marker.color.a = 1.0
-        marker.color.r = 1.0
-        marker.color.g = 0.0
+        marker.color.r = 0.0
+        marker.color.g = 1.0
         marker.color.b = 0.0
         # Publish the marker
         self._pub_markers.publish(marker)

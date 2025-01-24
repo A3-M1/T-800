@@ -169,3 +169,18 @@ def createGrayMaskWithProximityGradient(gray_image, lo, hi, center) :
     # Combine the mask and the gradient
     mask = cv2.bitwise_and(mask, gradient)
     return mask
+
+
+def findHighestPixel(gray_image):
+    """
+    Find the highest pixel in the given grayscale image.
+
+    Args:
+        gray_image (numpy.ndarray): The input grayscale image.
+
+    Returns:
+        tuple: The coordinates of the highest pixel (x, y).
+    """
+    # Find the highest pixel in the image
+    y, x = np.unravel_index(np.argmax(gray_image), gray_image.shape)
+    return (x, y)

@@ -2,9 +2,14 @@
 
 import rclpy # type: ignore
 from rclpy.node import Node # type: ignore
+from geometry_msgs.msg import PoseWithCovarianceStamped, Point
 from nav_msgs.msg import OccupancyGrid
 import numpy as np
+import visiontools as vst
 
+
+# Constants
+RADIUS_ROBOT = 0.3
 
 # Start the node
 def startNode():
@@ -22,30 +27,63 @@ class ROSMap():
     def __init__(self, rosNode):
         # Logger
         self._logger = rosNode.get_logger()
+        # Publisher for current interesting points
+        self._pub_interesting_point = rosNode.create_publisher(Point, '/t800/interesting_point', 10)
         # Subscribers to the map
         self._sub_map = rosNode.create_subscription(OccupancyGrid, '/map',self.map_callback, 10)
+        # Subscribers to the current position of the robot
+        self._sub_pose = rosNode.create_subscription(PoseWithCovarianceStamped, '/pose',self.pose_callback, 10)
         # Variables
         self._map = None
         self._map_width = None
         self._map_height = None
+        self._map_res = None
+        self._map_origin_real_pos = None
         self._interesting_point = None
+        self._current_position = None
+        # Timer to recalculate the the most intersting position to go explore
+        self._timer_find_point = rosNode.create_timer(10, self.find_most_interesting_point)
         # Log the start
         self._logger.info('Started !')
     
     # Save the map, get the most intersting point and publish it if it changed
     def map_callback(self, msg):
-        # Get width and height of the map
+        # Get width and height and resolutil of the map
         self._map_width = msg.info.width
         self._map_height = msg.info.height
+        self._map_res = msg.info.resolution
+        self._map_origin_real_pos = (msg.info.origin.position.x, msg.info.origin.position.y)
         # Save the map as a 2D array
-        self._map = np.array(msg.data).reshape(self._map_height, self._map_width)
-        # Find the most interesting point to go explore by exluding all the unreachable points
-        newPoint = self.find_interesting_point()
+        self._map = np.array(msg.data).reshape(self._map_height, self._map_width).astype(np.uint16)
+    
+    def pose_callback(self, msg):
+        # Save the current position of the robot
+        self._current_position = (msg.pose.pose.position.x, msg.pose.pose.position.y)
     
     # Find the most interesting point to go explore by exluding all the unreachable points
-    def find_interesting_point() :
-        pass
-
+    def find_most_interesting_point(self) :
+        # Check if the map is loaded
+        if self._map is None:
+            return None
+        # Transform the value of the map to help working with it in OpenCV
+        map_image = (self._map+1)*2
+        map_image = np.clip(map_image, 0, 255).astype(np.uint8)
+        # Apply a round kernel with the radius of the robot to the map
+        kernel = vst.createCircularKernel(RADIUS_ROBOT/self._map_res)
+        self._blurred_map = vst.applyKernelOnImage(self._map, kernel)
+        # Create a mask that exlude every point that is not interessting
+        # A point is not interesting if its kernel touched a wall (101) or if its kernel touched only free space (1) or unknown space (0)
+        # A gradient is then applied to the mask to give more importance to the points that are close to the robot
+        interest_map = vst.createGrayMaskWithProximityGradient(self._blurred_map, 1, 1, self._current_position)
+        # We find the most interesting point, wich is the one with the highest value that is included in the mask
+        self._interesting_point = vst.findHighestPixel(interest_map)
+        # Publish the new interesting point
+        self._pub_interesting_point.publish(Point(
+            x=(self._interesting_point[0]*self._map_res)+self._map_origin_real_pos[0],
+            y=(self._interesting_point[1]*self._map_res)+self._map_origin_real_pos[1],
+            z=0
+        ))
+        self._logger.info('New interesting point : ' + str(self._interesting_point))
 
 # Execute the function.
 if __name__ == "__main__":
