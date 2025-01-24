@@ -79,14 +79,10 @@ class ROSPlacer():
         marker.action = Marker.ADD
         marker.pose.position.x = float(self._phantoms[-1].x)
         marker.pose.position.y = float(self._phantoms[-1].y)
-        marker.pose.position.z = 0.0
-        marker.pose.orientation.x = 0.0
-        marker.pose.orientation.y = 0.0
-        marker.pose.orientation.z = 0.0
         marker.pose.orientation.w = 1.0
-        marker.scale.x = 1.0
-        marker.scale.y = 1.0
-        marker.scale.z = 1.0
+        marker.scale.x = 0.5
+        marker.scale.y = 0.5
+        marker.scale.z = 0.5
         marker.color.a = 1.0
         marker.color.r = 0.0
         marker.color.g = 1.0
