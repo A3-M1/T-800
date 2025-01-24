@@ -103,6 +103,7 @@ def createCircularKernel(radius):
     Returns:
         numpy.ndarray: The circular kernel.
     """
+    radius = int(radius)
     # Create a circular kernel
     kernel = np.zeros((2*radius+1, 2*radius+1), np.uint8)
     cv2.circle(kernel, (radius, radius), radius, 1, -1)
@@ -161,6 +162,7 @@ def createGrayMaskWithProximityGradient(gray_image, lo, hi, center) :
     Returns:
         numpy.ndarray: The generated mask.
     """
+    center = (int(center[0]), int(center[1]))
     # Create a mask based on the proximity of the pixel to the center
     mask = cv2.inRange(gray_image, lo, hi)
     # Create a radial gradient

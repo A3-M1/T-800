@@ -3,7 +3,7 @@
 import rclpy # type: ignore
 from rclpy.node import Node # type: ignore
 from std_msgs.msg import Char # type: ignore
-from geometry_msgs.msg import Pose2D, Point # type: ignore
+from geometry_msgs.msg import Pose2D, Point, PointStamped # type: ignore
 from tf2_geometry_msgs import do_transform_point
 from tf2_ros import TransformException
 from tf2_ros.buffer import Buffer
@@ -22,7 +22,7 @@ TURN_RIGHT = 3
 MESSAGE_GO_TO_POINT = {DO_NOTHING: 'Do nothing', GO_FORWARD: 'Go forward', TURN_LEFT: 'Turn left', TURN_RIGHT: 'Turn right'}
 
 # Default parameters
-DEFAULT_OVERTURN_TIME = 5
+DEFAULT_OVERTURN_TIME = 10
 DEFAULT_OBSTACLE_AVOIDANCE_TIME = 50
 DEFAULT_FORWARD_ANGLE = 0.1
 DEFAULT_STOP_DISTANCE_TO_POINT = 0.1
@@ -57,6 +57,7 @@ class ROSNavigator():
         # Variables
         self._order = DO_NOTHING
         self._i = 0
+        self._obstacle = OBSTACLE_NONE
         self._overturn = False
         self._beginOverturn = 0
         self._shift = False
@@ -87,12 +88,18 @@ class ROSNavigator():
     
     # Interesting point subscriber callback, save the point
     def interesting_point_callback(self, point_msg):
+        self._logger.info('Interesting point received : ' + str(point_msg))
         self._interestingPoint = point_msg
     
-    # Obstacle subscriber callback, set the move command according to the obstacle position
+    # Obstacle subscriber callback
     def obstacle_callback(self, char_msg):
+        self._obstacle = char_msg.data
+        self.obstacle_react()
+    
+    # React to the obstacle
+    def obstacle_react(self) :
         # If the obstacle is on the left, we turn right
-        if char_msg.data == OBSTACLE_LEFT and not self._turnLeft:
+        if self._obstacle == OBSTACLE_LEFT and not self._order == TURN_LEFT:
             self._order = TURN_RIGHT
             self._obstacleAvoidance = True
             self._overturn = False
@@ -101,7 +108,7 @@ class ROSNavigator():
             # Publish the move command
             self.move_publish()
         # If the obstacle is on the right, we turn left
-        elif char_msg.data == OBSTACLE_RIGHT and not self._turnRight:
+        elif self._obstacle == OBSTACLE_RIGHT and not self._order == TURN_RIGHT:
             self._order = TURN_LEFT
             self._obstacleAvoidance = True
             self._overturn = False
@@ -110,7 +117,7 @@ class ROSNavigator():
             # Publish the move command
             self.move_publish()
         # When there is no obstacle, we move over turn a random number and then go forward
-        elif char_msg.data == OBSTACLE_NONE and not self._overturn:
+        elif self._obstacle == OBSTACLE_NONE and not self._overturn and not self._shift:
             self._overturn = True
             self._shift = False
             self._beginOverturn = self._i
@@ -135,22 +142,24 @@ class ROSNavigator():
         self._i += 1
     
     
-    def goToPoint(self, point):
+    def goToPoint(self, map_point):
         # Extract the transformation needed to convert the point from map to base_link
         try:
-            t = self.tf_buffer.lookup_transform('base_link', 'map', rclpy.time.Time())
+            t = self._tfBuffer.lookup_transform('base_link', 'map', rclpy.time.Time())
         except TransformException as e:
             self._logger.warning('Could not transform map to base_link:' + str(e))
             return None
         # Transform the point
-        point = do_transform_point(point, t)
+        map_point = PointStamped(point=map_point)
+        point = do_transform_point(map_point, t)
+        point = point.point
         # Calculate the angle to turn to face the point
         angle = math.atan2(point.y, point.x)
         # Save the latest move command
         lastOrder = self._order
         # If the angle is too big, we turn on the spot
         if abs(angle) > DEFAULT_FORWARD_ANGLE:
-            self._order = TURN_RIGHT if angle > 0 else TURN_LEFT
+            self._order = TURN_LEFT if angle > 0 else TURN_RIGHT
         # If the angle is good, we go forward
         else:
             self._order = GO_FORWARD

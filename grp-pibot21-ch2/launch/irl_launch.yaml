@@ -11,13 +11,19 @@ launch:
         exec: "navigation"
     - node:
         pkg: "grp-pibot21-ch2"
+        exec: "map"
+    - node:
+        pkg: "grp-pibot21-ch2"
         exec: "scanner"
     - node:
         pkg: "grp-pibot21-ch2"
         exec: "camera"
+    - node:
+        pkg: "grp-pibot21-ch2"
+        exec: "place"
     
     - node:
         pkg: "rviz2"
         exec: "rviz2"
         name: "rviz2"
-        args: "-d $(find-pkg-share grp-pibot21-ch1)/config/config.rviz"
+        args: "-d $(find-pkg-share grp-pibot21-ch2)/config/config.rviz"

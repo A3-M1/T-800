@@ -8,10 +8,11 @@ from geometry_msgs.msg import Twist, Vector3, Pose2D # type: ignore
 
 # Default parameters
 DEFAULT_LINEAR_SPEED = 0.2
-DEFAULT_ANGULAR_SPEED = 1.0
+DEFAULT_ANGULAR_SPEED = 0.5
 DEFAULT_LINEAR_ACCEL_AUG = 0.03
 DEFAULT_LINEAR_ACCEL_DIM = 0.06
-DEFAULT_ANGULAR_ACCEL = 0.4
+DEFAULT_ANGULAR_ACCEL_AUG = 0.2
+DEFAULT_ANGULAR_ACCEL_DIM = 0.4
 DEFAULT_CMD_NAV_TOPIC = '/multi/cmd_nav'
 
 
@@ -45,13 +46,15 @@ class ROSMover():
         rosNode.declare_parameter('angular_speed', DEFAULT_ANGULAR_SPEED)
         rosNode.declare_parameter('linear_accel_aug', DEFAULT_LINEAR_ACCEL_AUG)
         rosNode.declare_parameter('linear_accel_dim', DEFAULT_LINEAR_ACCEL_DIM)
-        rosNode.declare_parameter('angular_accel', DEFAULT_ANGULAR_ACCEL)
+        rosNode.declare_parameter('angular_accel_aug', DEFAULT_ANGULAR_ACCEL_AUG)
+        rosNode.declare_parameter('angular_accel_dim', DEFAULT_ANGULAR_ACCEL_DIM)
         # Constants
         self._linearSpeed = rosNode.get_parameter('linear_speed').value
         self._angularSpeed = rosNode.get_parameter('angular_speed').value
         self._linearAccelAug = rosNode.get_parameter('linear_accel_aug').value
         self._linearAccelDim = rosNode.get_parameter('linear_accel_dim').value
-        self._angularAccel = rosNode.get_parameter('angular_accel').value
+        self._angularAccelAug = rosNode.get_parameter('angular_accel_aug').value
+        self._angularAccelDim = rosNode.get_parameter('angular_accel_dim').value
         # Variables
         self._emergencyStop = False
         self._currentLinearVelocity = 0.0
@@ -83,9 +86,9 @@ class ROSMover():
         elif self._currentLinearVelocity > self._targetLinearVelocity:
             self._currentLinearVelocity = max(self._currentLinearVelocity - self._linearAccelDim, self._targetLinearVelocity)
         if self._currentAngularVelocity < self._targetAngularVelocity:
-            self._currentAngularVelocity = min(self._currentAngularVelocity + self._angularAccel, self._targetAngularVelocity)
+            self._currentAngularVelocity = min(self._currentAngularVelocity + self._angularAccelAug, self._targetAngularVelocity)
         elif self._currentAngularVelocity > self._targetAngularVelocity:
-            self._currentAngularVelocity = max(self._currentAngularVelocity - self._angularAccel, self._targetAngularVelocity)
+            self._currentAngularVelocity = max(self._currentAngularVelocity - self._angularAccelDim, self._targetAngularVelocity)
     
     # Emergency stop subscriber callback
     def emergency_stop_callback(self, bool_msg):

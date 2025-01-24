@@ -43,6 +43,7 @@ class ROSMap():
         self._current_position = None
         # Timer to recalculate the the most intersting position to go explore
         self._timer_find_point = rosNode.create_timer(10, self.find_most_interesting_point)
+        self.find_most_interesting_point()
         # Log the start
         self._logger.info('Started !')
     
@@ -58,12 +59,13 @@ class ROSMap():
     
     def pose_callback(self, msg):
         # Save the current position of the robot
-        self._current_position = (msg.pose.pose.position.x, msg.pose.pose.position.y)
+        self._current_position = msg.pose.pose.position
     
     # Find the most interesting point to go explore by exluding all the unreachable points
     def find_most_interesting_point(self) :
         # Check if the map is loaded
         if self._map is None:
+            self._logger.warning('Map not loaded yet')
             return None
         # Transform the value of the map to help working with it in OpenCV
         map_image = (self._map+1)*2
@@ -74,14 +76,14 @@ class ROSMap():
         # Create a mask that exlude every point that is not interessting
         # A point is not interesting if its kernel touched a wall (101) or if its kernel touched only free space (1) or unknown space (0)
         # A gradient is then applied to the mask to give more importance to the points that are close to the robot
-        interest_map = vst.createGrayMaskWithProximityGradient(self._blurred_map, 1, 1, self._current_position)
+        interest_map = vst.createGrayMaskWithProximityGradient(self._blurred_map, 1, 1, (self._current_position.x, self._current_position.y))
         # We find the most interesting point, wich is the one with the highest value that is included in the mask
         self._interesting_point = vst.findHighestPixel(interest_map)
         # Publish the new interesting point
         self._pub_interesting_point.publish(Point(
-            x=(self._interesting_point[0]*self._map_res)+self._map_origin_real_pos[0],
-            y=(self._interesting_point[1]*self._map_res)+self._map_origin_real_pos[1],
-            z=0
+            x=(float(self._interesting_point[0])*self._map_res)+self._map_origin_real_pos[0],
+            y=(float(self._interesting_point[1])*self._map_res)+self._map_origin_real_pos[1],
+            z=0.0
         ))
         self._logger.info('New interesting point : ' + str(self._interesting_point))
 
