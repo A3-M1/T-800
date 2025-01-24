@@ -5,10 +5,7 @@ from rclpy.node import Node # type: ignore
 from std_msgs.msg import Char # type: ignore
 from geometry_msgs.msg import Pose2D # type: ignore
 from random import randint
-from nav_msgs.msg import OccupancyGrid
-from nav_msgs.msg import MapMetaData
-from tf2_msgs.msg import TFMessage
-from geometry_msgs.msg import PoseWithCovarianceStamped, TransformStamped, Pose, Transform, Vector3, Point, Quaternion
+
 
 # Constants
 OBSTACLE_LEFT = ord('L')
@@ -20,7 +17,7 @@ OBSTACLE_NONE = ord('N')
 def startNode():
     rclpy.init()
     aNode= Node("navigation")
-    navigator = ROSNavigator(aNode)
+    emergencyStoper = ROSNavigator(aNode)
     # Start infinite loop
     rclpy.spin(aNode)
     # Clean everything and switch the light off
@@ -36,7 +33,7 @@ class ROSNavigator():
         # Publisher for giving order to the mover
         self._pub_move = rosNode.create_publisher(Pose2D, '/t800/move', 10)
         # Subscriber to the scanner analysis
-        self._sub_obstacle = rosNode.create_subscription(Char, '/t800/obstacle', self.obstacle_callback, 10)   
+        self._sub_obstacle = rosNode.create_subscription(Char, '/t800/obstacle', self.obstacle_callback, 10)
         # Variables
         self._forward = True
         self._turnLeft = False
@@ -45,7 +42,6 @@ class ROSNavigator():
         self._overturn = False
         self._beginOverturn = 0
         self._overturnTime = 0
-
         # Timer to count every 0.1 second and differ some actions
         self._timer_differer = rosNode.create_timer(0.1, self.differer_callback)
         # Log the start
@@ -58,7 +54,7 @@ class ROSNavigator():
         x, theta = 0.0, 0.0
         # If we have to move forward, we set the linear speed to 1 time the default speed
         if self._forward:
-            theta = 1.0
+            x = 1.0
         # If we have to turn left, we set the angular speed to 1 positive time the default speed
         if self._turnLeft:
             theta = 1.0
