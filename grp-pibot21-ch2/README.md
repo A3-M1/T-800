@@ -116,3 +116,62 @@ source ./install/setup.bash
 
 ### Lancer le projet
 
+Une fois le package build, vous pouvez **lancer le robot via l'un des launch file**. Pour cela, il suffit d'utiliser la commande suivante :
+```console
+ros2 launch grp-pibot21-ch2 [launch filename]_launch.yaml
+```
+**Exemple :**
+```console
+ros2 launch grp-pibot21-ch2 basic_launch.yaml
+```
+
+Voici la liste des launchfile, ce qu'elles lancent et à quoi elle servent :
+
+| Lauchfile                                                                             | Mouvement/Navigation |   Camera/Vision    |        RViz        |     Simulation     |
+| ------------------------------------------------------------------------------------- | :------------------: | :----------------: | :----------------: | :----------------: |
+| **`basic_launch.yaml`:** Lance les mouvement du robot sans caméra                     |  :white_check_mark:  |        :x:         |        :x:         |        :x:         |
+| **`irl_auto_launch.yaml`:** Pareil que `irl_launch.yaml` mais sans RViz               |  :white_check_mark:  | :white_check_mark: |        :x:         |        :x:         |
+| **`irl_launch.yaml`:** Lance l'ensemble des fonctions du robot avec RViz              |  :white_check_mark:  | :white_check_mark: | :white_check_mark: |        :x:         |
+| **`rviz_launch.yaml`:** Lance seulement RViz *(visualisation à distance)*             |         :x:          |        :x:         | :white_check_mark: |        :x:         |
+| **`simulation_launch.yaml`:** Lance les mouvements du robot en simulation             |  :white_check_mark:  |        :x:         |        :x:         | :white_check_mark: |
+| **`simulation_rviz_launch.yaml`:** Pareil que `simulation_launch.yaml` mais avec RViz |  :white_check_mark:  |        :x:         | :white_check_mark: | :white_check_mark: |
+
+**Le robot devrait maintenant se déplacer !** :)
+
+## Nodes et topics
+
+```mermaid
+flowchart TD
+    lidar[LIDAR]
+    slam[SLAM]
+    cam[Caméra]
+    wheel[Moteurs]
+    led[LED]
+    bumper[Bumper]
+    wheeldrop[Détecteur de soulevement]
+    button[Boutons]
+    navigation([navigation])
+    emergencystop([emergencystop])
+    mover([mover])
+    scan([scanner])
+    map([map])
+    vision([camera])
+    placer([place])
+    rviz>Visualisation RViz]
+    cam-.-vision
+    lidar-.-|/scan|scan
+    slam-.-|/map|map
+    emergencystop-.-|/commands/led2|led
+    bumper-.-|/events/bumper|emergencystop
+    wheeldrop-.-|/events/wheel_drop|emergencystop
+    button-.-|/events/button|emergencystop
+    mover-.-|/t800/move|wheel
+    emergencystop---|/t800/emergency_stop|mover
+    vision---|/t800/detection_position|placer
+    placer-.-|/t800/phantoms_markers|rviz
+    vision-.-|/t800/color_image /t800/depth_colormap|rviz
+    scan---|/t800/obstacle|navigation
+    map---|/t800/interesting_point|navigation
+    navigation---|/t800/move|mover
+    slam-.-|/map|rviz
+```
