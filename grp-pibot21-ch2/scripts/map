@@ -2,8 +2,12 @@
 
 import rclpy # type: ignore
 from rclpy.node import Node # type: ignore
-from geometry_msgs.msg import PoseWithCovarianceStamped, Point
+from geometry_msgs.msg import PoseWithCovarianceStamped, Point, PointStamped
 from nav_msgs.msg import OccupancyGrid
+from tf2_geometry_msgs import do_transform_point
+from tf2_ros import TransformException
+from tf2_ros.buffer import Buffer
+from tf2_ros.transform_listener import TransformListener
 import numpy as np
 import visiontools as vst
 
@@ -31,8 +35,10 @@ class ROSMap():
         self._pub_interesting_point = rosNode.create_publisher(Point, '/t800/interesting_point', 10)
         # Subscribers to the map
         self._sub_map = rosNode.create_subscription(OccupancyGrid, '/map',self.map_callback, 10)
-        # Subscribers to the current position of the robot
-        self._sub_pose = rosNode.create_subscription(PoseWithCovarianceStamped, '/pose',self.pose_callback, 10)
+        # TF2 Buffer
+        self._tfBuffer = Buffer()
+        # TF2 Listener
+        self._tfListener = TransformListener(self._tfBuffer, rosNode)
         # Variables
         self._map = None
         self._map_width = None
@@ -43,6 +49,7 @@ class ROSMap():
         self._current_position = None
         # Timer to recalculate the the most intersting position to go explore
         self._timer_find_point = rosNode.create_timer(10, self.find_most_interesting_point)
+        self.find_most_interesting_point()
         # Log the start
         self._logger.info('Started !')
     
@@ -56,14 +63,25 @@ class ROSMap():
         # Save the map as a 2D array
         self._map = np.array(msg.data).reshape(self._map_height, self._map_width).astype(np.uint16)
     
-    def pose_callback(self, msg):
+    def save_current_position(self):
+        # Extract the transformation needed to convert the point from base_link to map
+        try:
+            t = self._tfBuffer.lookup_transform('map', 'base_link', rclpy.time.Time())
+        except TransformException as e:
+            self._logger.warning('Could not transform base_link to map:' + str(e))
+            return None
+        # Transform the origin of robot to map coord
+        robot_origin = PointStamped(point=Point(x=0.0, y=0.0, z=0.0))
+        transformation_of_origin = do_transform_point(robot_origin, t)
         # Save the current position of the robot
-        self._current_position = (msg.pose.pose.position.x, msg.pose.pose.position.y)
+        self._current_position = transformation_of_origin.point
+        #self._logger.info("TEST POSITION" + str(self._current_position.x) + " " + str(self._current_position.y))
     
     # Find the most interesting point to go explore by exluding all the unreachable points
     def find_most_interesting_point(self) :
         # Check if the map is loaded
         if self._map is None:
+            self._logger.warning('Map not loaded yet')
             return None
         # Transform the value of the map to help working with it in OpenCV
         map_image = (self._map+1)*2
@@ -74,14 +92,18 @@ class ROSMap():
         # Create a mask that exlude every point that is not interessting
         # A point is not interesting if its kernel touched a wall (101) or if its kernel touched only free space (1) or unknown space (0)
         # A gradient is then applied to the mask to give more importance to the points that are close to the robot
-        interest_map = vst.createGrayMaskWithProximityGradient(self._blurred_map, 1, 1, self._current_position)
+        self.save_current_position()
+        if self._current_position is None :
+            self._logger.warning("Can't get current position")
+            return None
+        interest_map = vst.createGrayMaskWithProximityGradient(self._blurred_map, 1, 1, (self._current_position.x, self._current_position.y))
         # We find the most interesting point, wich is the one with the highest value that is included in the mask
         self._interesting_point = vst.findHighestPixel(interest_map)
         # Publish the new interesting point
         self._pub_interesting_point.publish(Point(
-            x=(self._interesting_point[0]*self._map_res)+self._map_origin_real_pos[0],
-            y=(self._interesting_point[1]*self._map_res)+self._map_origin_real_pos[1],
-            z=0
+            x=(float(self._interesting_point[0])*self._map_res)+self._map_origin_real_pos[0],
+            y=(float(self._interesting_point[1])*self._map_res)+self._map_origin_real_pos[1],
+            z=0.0
         ))
         self._logger.info('New interesting point : ' + str(self._interesting_point))
 
