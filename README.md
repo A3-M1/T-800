@@ -16,18 +16,14 @@ git clone https://github.com/A3-M1/T-800.git
 
 Ce repo est composé de **plusieurs packages**, correspondants à plusieurs étapes ou besoin lors du projet.
 
-> Un README est *(ou sera)* disponible pour chacun des packages, expliquant comment le build, comment ils fonctionne, etc... Il est situé dans le dossier du package.
-
 | Package | Description | Dossier |
 |---|---|---|
 | `grp-pibot21-ch1` | Challenge 1 complet avec l'evitement d'obstacle et la detection basique de fantômes | [/grp-pibot21-ch1](/grp-pibot21-ch1) |
 | `move-the-robot` | Challenge Kick-Off et autres tests sur le déplacement du robot et l'évitement d'obstacles | [/move-the-robot](/move-the-robot) |
-|   |   |   |
-|   |   |   |
-|   |   |   |
+| `grp-pibot21-ch2` | Challenge 1 complet avec la navigation intelligente et le placement des fantômes | [/grp-pibot21-ch2](/grp-pibot21-ch2) *(Cliquez ici pour voir le README complet du challenge 2)* |
 
 ## Crédits
 
-Repo réalisé lors de l'**UV LARM 2024/25 de l'IMT Nord Europe** avec l'aide de la documentation du cours.
+Repo réalisé lors de l'**UV LARM 2024/25 de l'IMT Nord Europe** avec l'aide de la [documentation du cours](https://imt-mobisyst.github.io/lct-mobile-robot/).
 
-Travail réalisé par Apolline Mouthon, Geoffroy Bruneau et Gaspard Beunier.
+Travail réalisé par **Apolline Mouthon**, **Geoffroy Bruneau** et **Gaspard Beunier**.

@@ -1,0 +1,197 @@
+#!/usr/bin/python3
+
+import rclpy
+from rclpy.node import Node
+from geometry_msgs.msg import Point
+from sensor_msgs.msg import Image
+import rscamtools as rst
+import visiontools as vst
+import signal
+import numpy as np
+
+
+# Default parameters
+DEFAULT_FPS = 30
+DEFAULT_DETECTION_MIN_RADIUS = 30
+DEFAULT_LOWER_HUE = 45
+DEFAULT_UPPER_HUE = 80
+DEFAULT_LOWER_SATURATION = 50
+DEFAULT_LOWER_VALUE = 50
+
+
+# Global flag to handle Ctrl-C interruption
+isOk = True
+
+# Function to handle Ctrl-C interrupt
+def signalInteruption(signum, frame):
+    global isOk
+    print("\nCtrl-c pressed")
+    isOk = False
+
+# Handle Ctrl-C interruption by running the signalInteruption function
+signal.signal(signal.SIGINT, signalInteruption)
+
+
+# Realsense camera object instance from our custom module
+rscam = rst.RealSenseCam()
+
+
+# Start the node
+def startNode():
+    rclpy.init()
+    aNode= Node("camera")
+    camera = ROSCamera(aNode)
+    # Initialize camera
+    camera.init_camera()
+    # Start infinite loop
+    while isOk:
+        camera.image_acquisition()
+        if camera.detect_objects() :
+            camera.publish_position()
+        camera.publish_imgs()
+        rclpy.spin_once(aNode, timeout_sec=0.001)
+    # Clean end
+    camera.disconnect_camera()
+    aNode.destroy_node()
+    rclpy.shutdown()
+
+
+# Node execution
+class ROSCamera():
+    def __init__(self, rosNode):
+        # ROS Node
+        self._ros_node = rosNode
+        # Logger
+        self._logger = rosNode.get_logger()
+        # Publisher for detection message
+        self._pub_detection_position = rosNode.create_publisher(Point, '/t800/detection_position', 10)
+        # Publisher for camera images
+        self._pub_color_image = rosNode.create_publisher(Image, '/t800/color_image', 10)
+        self._pub_depth_colormap = rosNode.create_publisher(Image, '/t800/depth_colormap', 10)
+        # Parameters
+        rosNode.declare_parameter('fps', DEFAULT_FPS)
+        # Constants
+        self._fps = rosNode.get_parameter('fps').value
+        # Config variables
+        rosNode.declare_parameter('detection_min_radius', DEFAULT_DETECTION_MIN_RADIUS)
+        rosNode.declare_parameter('lower_hue', DEFAULT_LOWER_HUE)
+        rosNode.declare_parameter('upper_hue', DEFAULT_UPPER_HUE)
+        rosNode.declare_parameter('lower_saturation', DEFAULT_LOWER_SATURATION)
+        rosNode.declare_parameter('lower_value', DEFAULT_LOWER_VALUE)
+        # Timer to update variables parameters every 0.5 seconds
+        self.params_callback()
+        self._timer_params = rosNode.create_timer(0.5, self.params_callback)
+        # Variables
+        self._color_frame = None
+        self._depth_frame = None
+        self._depth_colormap = None
+        self._color_image = None
+        self._depth_image = None
+        self._object_detected = False
+        self._object_center_position = None
+        self._object_enclose_radius = None
+        self._real_pos = (0, 0, 0)
+        self._unknown_pos = True
+        # Log the start
+        self._logger.info('Started !')
+    
+    # Update parameters, this function is called every 0.5 seconds
+    def params_callback(self):
+        self._detection_min_radius = self._ros_node.get_parameter('detection_min_radius').value
+        self._lower_hue = self._ros_node.get_parameter('lower_hue').value
+        self._upper_hue = self._ros_node.get_parameter('upper_hue').value
+        self._lower_saturation = self._ros_node.get_parameter('lower_saturation').value
+        self._lower_value = self._ros_node.get_parameter('lower_value').value
+    
+    # Initialize the camera
+    def init_camera(self):
+        rscam.initRealsenseCamera()
+        self._logger.info('Camera initialized !')
+    
+    # Disconnect the camera
+    def disconnect_camera(self):
+        rscam.closeRealsenseCamera(self._pipeline)
+        self._logger.info('Camera disconnected !')
+    
+    # Aquire the latests images from the camera
+    def image_acquisition(self):
+        # Get the latest frames
+        self._color_frame, self._depth_frame = rscam.getRealsenseAlignedOnColorFrames()
+        if self._color_frame is not None and self._depth_frame is not None:
+            # Create a colormap from the depth frame
+            self._depth_colormap = rscam.colorizeDepthFrame(self._depth_frame)
+            # Convert the frames to numpy arrays to use with OpenCV
+            self._color_image = rscam.convertToNumpyArray(self._color_frame)
+            self._depth_image = rscam.convertToNumpyArray(self._depth_colormap)
+        else :
+            self._logger.warning('No frames received !')
+    
+    # Function to publish the images on the ROS topics
+    def publish_imgs(self, annotated = True):
+        if self._color_image is not None and self._depth_colormap is not None:
+            # If asked so, we annotate object with detection if we detect something
+            if self._object_detected and annotated:
+                color_annotated_image = vst.drawCircle(self._color_image, self._object_center_position, self._object_enclose_radius)
+                text = '?, ?, ?' if self._unknown_pos else str(round(self._real_pos[0], 2)) + ', ' + str(round(self._real_pos[1], 2)) + ', ' + str(round(self._real_pos[2], 2))
+                depth_annotated_image = vst.drawPointAndText(self._depth_image, self._object_center_position, text)
+                # Image conversion
+                color_msg = convertImageToROS(color_annotated_image)
+                depth_msg = convertImageToROS(depth_annotated_image)
+            else :
+                # Image conversion
+                color_msg = convertImageToROS(self._color_image)
+                depth_msg = convertImageToROS(self._depth_image)
+            # Publish the images
+            self._pub_color_image.publish(color_msg)
+            self._pub_depth_colormap.publish(depth_msg)
+    
+    # Function to detect green objects in the images, return True if one is detected
+    def detect_objects(self) :
+        # We first create a mask with HSV colors for all green objects
+        lo = (self._lower_hue, self._lower_saturation, self._lower_value)
+        hi = (self._upper_hue, 255, 255)
+        mask = vst.createHsvMask(self._color_image, lo, hi)
+        # We try to find the center position and the enclosing radius of the detected object
+        self._object_center_position, self._object_enclose_radius = vst.findElementFromMask(mask, self._detection_min_radius)
+        # If an object exists, we return True
+        self._object_detected = self._object_center_position is not None
+        return self._object_detected
+    
+    # Function to publish the position of the object if we can find one
+    def publish_position(self):
+        if self._object_detected:
+            # Get the position of the object
+            self._real_pos = rscam.getRealPositionOfPixel(self._color_frame, self._depth_frame, self._object_center_position[0], self._object_center_position[1])
+            self._unknown_pos = self._real_pos[0] == 0 and self._real_pos[1] == 0 and self._real_pos[2] == 0
+            # Create the Point message
+            msg = Point(x=self._real_pos[0], y=self._real_pos[1], z=self._real_pos[2])
+            # Publish the message
+            self._pub_detection_position.publish(msg)
+            # Log the detection
+            #self._logger.info('Object detected at position : ' + str(msg.x) + ', ' + str(msg.y) + ', ' + str(msg.z))
+    
+
+
+def convertImageToROS(cv_img):
+    """
+    Converts an OpenCV image to a ROS Image message.
+
+    Args:
+        cv_img: The OpenCV image to be converted.
+
+    Returns:
+        A ROS Image message containing the converted image.
+    """
+    msg = Image()
+    msg.header.stamp = rclpy.time.Time().to_msg()
+    msg.height = cv_img.shape[0]
+    msg.width = cv_img.shape[1]
+    msg.encoding = "bgr8"  # Encodage pour l'image couleur
+    msg.data = np.array(cv_img).tobytes()
+    return msg
+
+
+
+# Execute the function.
+if __name__ == "__main__":
+    startNode()

@@ -1,0 +1,178 @@
+#!/usr/bin/python3
+
+import rclpy # type: ignore
+from rclpy.node import Node # type: ignore
+from std_msgs.msg import Char # type: ignore
+from geometry_msgs.msg import Pose2D, Point, PointStamped # type: ignore
+from tf2_geometry_msgs import do_transform_point
+from tf2_ros import TransformException
+from tf2_ros.buffer import Buffer
+from tf2_ros.transform_listener import TransformListener
+import math
+
+
+# Constants
+OBSTACLE_LEFT = ord('L')
+OBSTACLE_RIGHT = ord('R')
+OBSTACLE_NONE = ord('N')
+DO_NOTHING = 0
+GO_FORWARD = 1
+TURN_LEFT = 2
+TURN_RIGHT = 3
+MESSAGE_GO_TO_POINT = {DO_NOTHING: 'Do nothing', GO_FORWARD: 'Go forward', TURN_LEFT: 'Turn left', TURN_RIGHT: 'Turn right'}
+
+# Default parameters
+DEFAULT_OVERTURN_TIME = 10
+DEFAULT_OBSTACLE_AVOIDANCE_TIME = 50
+DEFAULT_FORWARD_ANGLE = 0.1
+DEFAULT_STOP_DISTANCE_TO_POINT = 0.1
+
+# Start the node
+def startNode():
+    rclpy.init()
+    aNode= Node("navigation")
+    emergencyStoper = ROSNavigator(aNode)
+    # Start infinite loop
+    rclpy.spin(aNode)
+    # Clean everything and switch the light off
+    aNode.destroy_node()
+    rclpy.shutdown()
+
+
+# Node execution
+class ROSNavigator():
+    def __init__(self, rosNode):
+        # Logger
+        self._logger = rosNode.get_logger()
+        # Publisher for giving order to the mover
+        self._pub_move = rosNode.create_publisher(Pose2D, '/t800/move', 10)
+        # Subscriber to the scanner analysis
+        self._sub_obstacle = rosNode.create_subscription(Char, '/t800/obstacle', self.obstacle_callback, 10)
+        # Subscriber to the most interesting point
+        self._sub_interesting_point = rosNode.create_subscription(Point, '/t800/interesting_point', self.interesting_point_callback, 10)
+        # TF2 Buffer
+        self._tfBuffer = Buffer()
+        # TF2 Listener
+        self._tfListener = TransformListener(self._tfBuffer, rosNode)
+        # Variables
+        self._order = DO_NOTHING
+        self._i = 0
+        self._obstacle = OBSTACLE_NONE
+        self._overturn = False
+        self._beginOverturn = 0
+        self._shift = False
+        self._beginShift = 0
+        self._obstacleAvoidance = False
+        self._interestingPoint = None
+        # Timer to count every 0.1 second and differ some actions
+        self._timer_differer = rosNode.create_timer(0.1, self.differer_callback)
+        # Log the start
+        self._logger.info('Started !')
+        # Publish the first move command
+        self.move_publish()
+
+    # Move command publisher, 
+    def move_publish(self):
+        x, theta = 0.0, 0.0
+        # If we have to move forward, we set the linear speed to 1 time the default speed
+        if self._order == GO_FORWARD:
+            x = 1.0
+        # If we have to turn left, we set the angular speed to 1 positive time the default speed
+        if self._order == TURN_LEFT:
+            theta = 1.0
+        # If we have to turn right, we set the angular speed to 1 negative time the default speed
+        elif self._order == TURN_RIGHT:
+            theta = -1.0
+        # Publish the move command to the topic
+        self._pub_move.publish(Pose2D(x=x, theta=theta))
+    
+    # Interesting point subscriber callback, save the point
+    def interesting_point_callback(self, point_msg):
+        self._logger.info('Interesting point received : ' + str(point_msg))
+        self._interestingPoint = point_msg
+    
+    # Obstacle subscriber callback
+    def obstacle_callback(self, char_msg):
+        self._obstacle = char_msg.data
+        self.obstacle_react()
+    
+    # React to the obstacle
+    def obstacle_react(self) :
+        # If the obstacle is on the left, we turn right
+        if self._obstacle == OBSTACLE_LEFT and not self._order == TURN_LEFT:
+            self._order = TURN_RIGHT
+            self._obstacleAvoidance = True
+            self._overturn = False
+            self._shift = False
+            self._logger.info('Obstacle detected : Avoid to the right')
+            # Publish the move command
+            self.move_publish()
+        # If the obstacle is on the right, we turn left
+        elif self._obstacle == OBSTACLE_RIGHT and not self._order == TURN_RIGHT:
+            self._order = TURN_LEFT
+            self._obstacleAvoidance = True
+            self._overturn = False
+            self._shift = False
+            self._logger.info('Obstacle detected : Avoid to the left')
+            # Publish the move command
+            self.move_publish()
+        # When there is no obstacle, we move over turn a random number and then go forward
+        elif self._obstacle == OBSTACLE_NONE and not self._overturn and not self._shift:
+            self._overturn = True
+            self._shift = False
+            self._beginOverturn = self._i
+            self._logger.info('Obstacle undetected : Begin overturn')
+
+    def differer_callback(self) :
+        if self._obstacleAvoidance and self._overturn and self._i > self._beginOverturn + DEFAULT_OVERTURN_TIME :
+            self._logger.info('Overturn : End overturn and begin shift')
+            self._overturn = False
+            self._shift = True
+            self._beginShift = self._i
+            self._order = GO_FORWARD
+            # Publish the move command
+            self.move_publish()
+        elif self._obstacleAvoidance and self._shift and self._i > self._beginShift + DEFAULT_OBSTACLE_AVOIDANCE_TIME :
+            self._logger.info('Shift : End shift')
+            self._overturn = False
+            self._shift = False
+            self._obstacleAvoidance = False
+        if not self._obstacleAvoidance and self._interestingPoint is not None :
+            self.goToPoint(self._interestingPoint)
+        self._i += 1
+    
+    
+    def goToPoint(self, map_point):
+        # Extract the transformation needed to convert the point from map to base_link
+        try:
+            t = self._tfBuffer.lookup_transform('base_link', 'map', rclpy.time.Time())
+        except TransformException as e:
+            self._logger.warning('Could not transform map to base_link:' + str(e))
+            return None
+        # Transform the point
+        map_point = PointStamped(point=map_point)
+        point = do_transform_point(map_point, t)
+        point = point.point
+        # Calculate the angle to turn to face the point
+        angle = math.atan2(point.y, point.x)
+        # Save the latest move command
+        lastOrder = self._order
+        # If the angle is too big, we turn on the spot
+        if abs(angle) > DEFAULT_FORWARD_ANGLE:
+            self._order = TURN_LEFT if angle > 0 else TURN_RIGHT
+        # If the angle is good, we go forward
+        else:
+            self._order = GO_FORWARD
+        # If we are close enough to the point, we stop
+        if abs(point.x) < DEFAULT_STOP_DISTANCE_TO_POINT and abs(point.y) < DEFAULT_STOP_DISTANCE_TO_POINT:
+            self._interestingPoint = None
+            self._order = DO_NOTHING
+        # Publish the move command
+        if self._order != lastOrder:
+            self._logger.info('Go to point : ' + MESSAGE_GO_TO_POINT[self._order])
+            self.move_publish()
+
+
+# Execute the function.
+if __name__ == "__main__":
+    startNode()

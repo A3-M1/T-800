@@ -1,0 +1,20 @@
+launch:
+
+    - include:
+        file: "$(find-pkg-share slam_toolbox)/launch/online_sync_launch.py"
+
+    - node:
+        pkg: "grp-pibot21-ch2"
+        exec: "emergencystop"
+    - node:
+        pkg: "grp-pibot21-ch2"
+        exec: "mover"
+    - node:
+        pkg: "grp-pibot21-ch2"
+        exec: "navigation"
+    - node:
+        pkg: "grp-pibot21-ch2"
+        exec: "map"
+    - node:
+        pkg: "grp-pibot21-ch2"
+        exec: "scanner"

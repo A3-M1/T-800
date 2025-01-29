@@ -1,0 +1,98 @@
+#!/usr/bin/python3
+
+import rclpy # type: ignore
+from rclpy.node import Node # type: ignore
+from geometry_msgs.msg import Point, PointStamped
+from tf2_geometry_msgs import do_transform_point
+from visualization_msgs.msg import Marker
+from tf2_ros import TransformException
+from tf2_ros.buffer import Buffer
+from tf2_ros.transform_listener import TransformListener
+
+
+# Default parameters
+DEFAULT_RADIUS_SAME_PHANTOM = 0.15
+
+# Start the node
+def startNode():
+    rclpy.init()
+    aNode= Node("emergency_stop")
+    placer = ROSPlacer(aNode)
+    # Start infinite loop
+    rclpy.spin(aNode)
+    # Clean everything and switch the light off
+    aNode.destroy_node()
+    rclpy.shutdown()
+
+# Node execution
+class ROSPlacer():
+    def __init__(self, rosNode):
+        # Node
+        self._ros_node = rosNode
+        # Logger
+        self._logger = rosNode.get_logger()
+        # Publisher for adding markers
+        self._pub_markers = rosNode.create_publisher(Marker, '/t800/phantoms_markers', 10)
+        # Subscribers to detection of phantoms
+        self._sub_detection = rosNode.create_subscription(Point, '/t800/detection_position', self.detection_callback, 10)
+        # TF2 Buffer
+        self._tfBuffer = Buffer()
+        # TF2 Listener
+        self._tfListener = TransformListener(self._tfBuffer, rosNode)
+        # Variables
+        self._phantoms = []
+        # Log the start
+        self._logger.info('Started !')
+    
+    # When a new phantom is detected, this function verify if it is already in the database and add it if not, then publish the new markers
+    def detection_callback(self, msg):
+        
+        # Extract the transformation needed to convert the point from camera_link to map
+        try:
+            t = self._tfBuffer.lookup_transform('map', 'camera_link', rclpy.time.Time())
+        except TransformException as e:
+            self._logger.warning('Could not transform map to camera_link:' + str(e))
+            return None
+        # Transform the point
+        cam_point = PointStamped(point=msg)
+        point = do_transform_point(cam_point, t)
+        point = point.point
+        # Check if the phantom is already in the database
+        for phantom in self._phantoms:
+            if abs(phantom.x - point.x) < DEFAULT_RADIUS_SAME_PHANTOM and abs(phantom.y - point.y) < DEFAULT_RADIUS_SAME_PHANTOM:
+                return None
+        # Add the phantom to the list
+        self._phantoms.append(point)
+        self._logger.info("Phantom found at : " + str(point.x) + "," + str(point.y))
+        # Publish the new marker
+        self.publish_new_markers()
+    
+    # Publish a new marker
+    def publish_new_markers(self):
+        # Create the marker
+        marker = Marker()
+        marker.header.frame_id = "map"
+        marker.header.stamp = self._ros_node.get_clock().now().to_msg()
+        marker.ns = "phantom" + str(len(self._phantoms))
+        marker.id = len(self._phantoms)
+        marker.type = Marker.SPHERE
+        marker.action = Marker.ADD
+        marker.pose.position.x = float(self._phantoms[-1].x)
+        marker.pose.position.y = float(self._phantoms[-1].y)
+        marker.pose.orientation.w = 1.0
+        marker.scale.x = 0.5
+        marker.scale.y = 0.5
+        marker.scale.z = 0.5
+        marker.color.a = 1.0
+        marker.color.r = 0.0
+        marker.color.g = 1.0
+        marker.color.b = 0.0
+        marker.lifetime = 0
+        # Publish the marker
+        self._pub_markers.publish(marker)
+    
+
+
+# Execute the function.
+if __name__ == "__main__":
+    startNode()
